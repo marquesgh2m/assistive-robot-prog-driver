@@ -1,6 +1,11 @@
 #include <Arduino.h>
 #include "protocol.h"
 
+
+void protocol_config(){
+    Serial.begin(115200,SERIAL_8N1); // initialize the serial communications:
+}
+
 Player::Player(){
     //setPort((char*)"/dev/ttyACM0");
     //openPlayer();
@@ -146,16 +151,53 @@ int Player::readData(unsigned char *rx_data, unsigned int *rx_data_count){ //ret
     return 0;//there is - non valid data 
 }
 
-unsigned char Player::checksum(unsigned char *msg,int size){
-  int i;
-  unsigned char sum = 0;
+/*
+uint8_t Player::checksum(uint8_t *msg, uint8_t size){
+  uint8_t i;
+  uint8_t sum = 0;
   for(i=0;i<size;i++){
     sum = sum ^ msg[i];
   }
   return sum;
+}*/
+
+
+//CRC-8 - based on the CRC8 formulas by Dallas/Maxim
+//code released under the therms of the GNU GPL 3.0 license
+//http://www.leonardomiliani.com/en/2013/un-semplice-crc8-per-arduino/
+uint8_t Player::checksum(const uint8_t *msg, uint8_t size) {
+  uint8_t crc = 0x00;
+  while (size--) {
+    uint8_t extract = *msg++;
+    for (uint8_t tempI = 8; tempI; tempI--){
+      uint8_t sum = (crc ^ extract) & 0x01;
+      crc >>= 1;
+      if (sum) {
+        crc ^= 0x8C;
+      }
+      extract >>= 1;
+    }
+  }
+  return crc;
 }
 
 
+
+
+/*
+Erratic 2bytes checksum - ainda nao testadi
+int16_t Player::checksum2(uint8_t *msg, int16_t size) {
+     uint16_t sum = 0;
+     while (size > 1) {
+         sum += (*(msg)<<8) | *(msg+1);
+         size -= 2;
+         msg += 2;
+     }
+     if (size > 0) sum = sum ^ (uint16_t)*msg;
+     return sum;
+}*/
+
+/*
 int Player::writeData(unsigned char msgType, unsigned char *tx_data, unsigned int tx_data_count){
     int i;
     for(i=tx_data_count;i>=0;i--){
@@ -166,15 +208,15 @@ int Player::writeData(unsigned char msgType, unsigned char *tx_data, unsigned in
 
     if(writeData(tx_data,tx_data_count)) return 1;
     else return 0;
-}
+}*/
 
-int Player::writeData(unsigned char *tx_data, unsigned int tx_data_count){
+int Player::writeData(uint8_t *tx_data, unsigned int tx_data_count){
     int i, len;
-    unsigned char temp[DATAMAX];
+    uint8_t temp[DATAMAX];
     temp[0]=SYNC0; //init byte0
     temp[1]=SYNC1; //init byte1
     temp[2]=tx_data_count; //message size byte
-    for(i=0;i<tx_data_count+3;i++)temp[i+3]=tx_data[i];//passa mensagem para a variavel temp 
+    for(i=0;i<tx_data_count+3;i++) temp[i+3]=tx_data[i];//passa mensagem para a variavel temp 
     temp[i]=checksum(tx_data,tx_data_count);
     i++;
     len=i;

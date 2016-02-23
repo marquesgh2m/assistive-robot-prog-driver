@@ -15,6 +15,7 @@ using namespace std;
 
 
 int motorActiveFlag = 0; //debug
+int lastXPos = 0;
 
 int main(int argc, char *argv[]){
 	int i,n;
@@ -49,13 +50,15 @@ int main(int argc, char *argv[]){
 	PlayerClient    robot(host,port);
 	DioProxy systemDio(&robot,0);
 	RangerProxy myranger(&robot,0);
-	Position2dProxy mymotors(&robot, 0);
+	Position2dProxy mymotors(&robot, 1);
+	Position2dProxy neckServo(&robot, 0);
 	BumperProxy mybumper(&robot, 0);
 	PowerProxy mypower(&robot, 0);
 
 	cout << "Client starts! " << endl;
 
 	for(;;){
+		system("clear");
 		cout << endl << "Insert an option: " << endl;
 		cout << "t - togle power led" << endl;
 		cout << "s - 3 pulses system dio" << endl;
@@ -64,13 +67,19 @@ int main(int argc, char *argv[]){
 		cout << "l - rangers print loop" << endl;
 		cout << "m - Enter motors speed" << endl;
 		cout << "o - Make a square" << endl;
-		cout << "p - test position 2d" << endl;
 		cout << "a - all proxy pos2D information" << endl;
-		cout << "pf - para frente" << endl;
+		cout << "pf x - para frente x passos" << endl;
+		cout << "pt x - para tras x passos" << endl;
+		cout << "pd x - rotaciona direita x angulos" << endl;
+		cout << "pe x - rotaciona esquerda x angulos" << endl;
 		//cout << "ss - set speed" << endl;
 		cout << "b - bumpers print loop" << endl;
 		cout << "v - power print loop" << endl;
+		cout << "p - position 2D" << endl;
+		cout << "n - neck position" << endl;
+		cout << "g - getPos" << endl;
 		cout << "q - quit" << endl;
+
 		cin >> option;
 		
 		if(option=="t"){
@@ -174,6 +183,7 @@ int main(int argc, char *argv[]){
 			systemDio.SetOutput(8,0); //stop
 			robot.Read(); //update proxies
 		}
+		/* teste para ver como funciona o go to e o request geometri (ainda nao funciona bem)
 		else if(option=="p"){
 			double forwardSpeed, turnSpeed;
 			forwardSpeed = 42;
@@ -206,7 +216,7 @@ int main(int argc, char *argv[]){
 					<< " pitch[rad]" << p3d.ppitch 
 					<< " yaw[rad]" << p3d.pyaw << endl;
 
-		}
+		}*/
 		else if(option=="o"){
 			robot.Read();
 			cout << mymotors << endl;
@@ -215,14 +225,45 @@ int main(int argc, char *argv[]){
 			string cmdValue;
 			cin >> cmdValue;
 
+			float linear_default_vel = 0.04; //[m/s]
+
 			if(option.at(1)=='f')
-				mymotors.SetSpeed(atoi(cmdValue.c_str()),0);
+				mymotors.SetSpeed(linear_default_vel,0); //mymotors.SetSpeed(atoi(cmdValue.c_str()),0);
 			else if (option.at(1)=='d')
-				mymotors.SetSpeed(0,-atoi(cmdValue.c_str()));
+				mymotors.SetSpeed(0,linear_default_vel);
 			else if (option.at(1)=='e')
-				mymotors.SetSpeed(0,atoi(cmdValue.c_str()));
+				mymotors.SetSpeed(0,-linear_default_vel);
 			else if (option.at(1)=='t')
-				mymotors.SetSpeed(-atoi(cmdValue.c_str()),0);
+				mymotors.SetSpeed(-linear_default_vel,0);
+
+
+			int aux = atoi(cmdValue.c_str());
+
+			int atualXPos = mymotors.GetXPos();
+			lastXPos = atualXPos;
+			while(true){
+				robot.Read();
+				atualXPos = mymotors.GetXPos();
+				if(option.at(1)=='f'       && (atualXPos-lastXPos)>=aux) break;
+				else if (option.at(1)=='t' && (lastXPos-atualXPos)>=aux) break;
+			}
+			mymotors.SetSpeed(0,0); //stop motor
+			cout << "X[m]" << mymotors.GetXPos() << endl;
+			//sleep(atoi(cmdValue.c_str()));
+		
+		}
+		else if(option.at(0)=='n'){
+			string cmdValue;
+			if(option.size()==1){ //evita comandos sem espaço ex: "n180" ao inves de "n 180"
+				cin >> cmdValue;
+				neckServo.SetSpeed(0,atoi(cmdValue.c_str()));		
+			}
+		}
+		else if(option.at(0)=='g'){
+			robot.Read(); //sem o read nao atualiza os proxies que fizeram publish
+			cout << "X[m]" << mymotors.GetXPos()
+					<< " Y[m]" << mymotors.GetYPos()
+					<< " yaw[rad]" << mymotors.GetYaw() << endl;
 		}
 		else if(option=="b"){
 			string bumperNames[] = {"NE","N ","NW","SW", "S ", "SE"};

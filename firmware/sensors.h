@@ -6,11 +6,13 @@ class Ranger{
     public:
         Ranger(uint8_t echoPin,uint8_t trigPin);
 
+        uint8_t getData();
         uint8_t getRange();
         uint8_t getMaxRange();//[cm]
         uint8_t getMinRange();//[cm]
         uint8_t getEchoPin();
         uint8_t getTrigPin();
+
 
         void setMaxRange(uint8_t maxRange);   //[cm]
         void setMinRange(uint8_t minRange);   //[cm]

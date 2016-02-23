@@ -22,8 +22,8 @@
 
 //PROTOCOL DEFINES
 #define DATAMAX 50
-#define SYNC0   0xAA
-#define SYNC1   0xBB
+#define SYNC0   0xAB
+#define SYNC1   0xCD
 #define MOTORPACK  0x28
 #define DIOPACK  0x15
 #define RANGERPACK  0x68
@@ -33,6 +33,8 @@
 #define CONFIGPACK  0xC0
 #define REQUESTCONFIGPACK 0xC7
 #define PINGPACK 0x41
+#define ENCODERPACK  0x81
+#define SERVOPACK  0x30
 
 void sendPing();
 
@@ -52,7 +54,7 @@ class Serial{
         void setSpeed(void);
         void setParity();
         int openSerial();
-        unsigned char checksum(unsigned char *msg,int size);
+        unsigned char checksum(const unsigned char *msg, unsigned char size);
         void toPrint();
         
         char serial_port[50];
@@ -300,14 +302,36 @@ int Serial::readData(unsigned char *rx_data, unsigned int *rx_data_count){ //ret
     return 0;//there is - non valid data 
 }
 
-unsigned char Serial::checksum(unsigned char *msg,int size){
+/*
+unsigned char Serial::checksum(unsigned char *msg, unsigned char size){
   int i;
   unsigned char sum = 0;
   for(i=0;i<size;i++){
     sum = sum ^ msg[i];
   }
   return sum;
+}*/
+
+//CRC-8 - based on the CRC8 formulas by Dallas/Maxim
+//code released under the therms of the GNU GPL 3.0 license
+//http://www.leonardomiliani.com/en/2013/un-semplice-crc8-per-arduino/
+unsigned char Serial::checksum(const unsigned char *msg, unsigned char size) {
+  unsigned char crc = 0x00;
+  while (size--) {
+    unsigned char extract = *msg++;
+    for (unsigned char tempI = 8; tempI; tempI--){
+      unsigned char sum = (crc ^ extract) & 0x01;
+      crc >>= 1;
+      if (sum) {
+        crc ^= 0x8C;
+      }
+      extract >>= 1;
+    }
+  }
+  return crc;
 }
+
+
 
 int Serial::writeData(unsigned char msgType, unsigned char *tx_data, unsigned int tx_data_count){
     int i;
@@ -336,15 +360,14 @@ int Serial::writeData(unsigned char *tx_data, unsigned int tx_data_count){
     //printf("Write Dio temp[4]:%.2X\n",temp[4]);
     //printf("Write Dio tx_data[1]:%.2X\n",tx_data[1]);
 
-    printf("debug write:");
+    /*printf("debug write:");
     for(i=0;i<len;i++) {
         printf("%.2X",temp[i]);
          //show data in hexa
     }
-    printf("\n");
+    printf("\n");*/
     //std::cout << "Write Dio tx_data[1]:" << std::hex << tx_data[3] << std::endl; //decimal value
 
-    if(write(this->fd, temp, len)) printf("Ok\n\n");
-        else printf("error\n");
+    if(!write(this->fd, temp, len)) printf("write error!\n");
     return 0;
 }

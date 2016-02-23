@@ -54,12 +54,39 @@
 
 // Defines
 #define PI 3.141592653
-#define DONNIE_DIAMETER 0.44 //[m]
-#define DONNIE_RADIUS DONNIE_DIAMETER * 0.5 //[m]
-#define DONNIE_CIRCUMFERENCE 2 * PI * DONNIE_RADIUS //[m]
-#define DONNIE_CENTRE_TO_WHEEL 0.135 //[m]
-#define DONNIE_WHEEL_RADIUS 0.04 //[m]
+#define DIAMETER 0.44 //[m]
+#define RADIUS (DONNIE_DIAMETER * 0.5) //[m]
+#define CIRCUMFERENCE (2 * PI * DONNIE_RADIUS) //[m]
+#define CENTRE_TO_WHEEL 0.135 //[m]
 #define PULSE_TO_RPM 1.83  //[rpm] (SEC_PR_MIN*MSEC_PR_SEC) / GEAR_RATIO / PULSES_PR_REV
+
+#define WHEEL_RADIUS 0.04 //[m]
+#define WHEEL_DIAMETER (WHEEL_RADIUS*2)
+#define DEFAULT_AXLE_LENGTH	0.301
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// The class for timer
+
+class Timer
+{
+public:
+    Timer() { clock_gettime(CLOCK_REALTIME, &beg_); }
+
+    double elapsed() {
+        clock_gettime(CLOCK_REALTIME, &end_);
+        return end_.tv_sec - beg_.tv_sec +
+            (end_.tv_nsec - beg_.tv_nsec) / 1000000000.;
+    }
+
+    void reset() { clock_gettime(CLOCK_REALTIME, &beg_); }
+
+private:
+    timespec beg_, end_;
+};
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // The class for the driver
@@ -79,6 +106,7 @@ class Donnie : public ThreadedDriver{
 		int processIncomingData(); //g
 
 		void ProcessDioCommand(player_msghdr_t* hdr, player_dio_cmd_t &data);   
+		void ProcessNeckPos2dVelCmd(player_msghdr_t* hdr, player_position2d_cmd_vel_t &data);
 		void ProcessPos2dVelCmd(player_msghdr_t* hdr, player_position2d_cmd_vel_t &data);
 		void ProcessPos2dPosCmd(player_msghdr_t* hdr, player_position2d_cmd_pos_t &data);
 		void ProcessPos2dGeomReq(player_msghdr_t* hdr);
@@ -91,8 +119,7 @@ class Donnie : public ThreadedDriver{
 		void ProcessSystemMessageData();
 		void ProcessRequestConfig();
 		void ProcessRequestPing();
-
-
+		void ProcessEncoderData();
 		
 	/*  
 	Definition:
@@ -107,10 +134,12 @@ class Donnie : public ThreadedDriver{
 
 	Source: player-3.0.2/build/libplayerinterface/player_interfaces.h 
 	*/
+		Timer tmr; //to get the execution time
+
 		std::string port;
 
 		Serial *arduino;
-		unsigned char rx_data[BUFFER_SIZE], tx_data[BUFFER_SIZE]; //g
+		uint8_t rx_data[BUFFER_SIZE], tx_data[BUFFER_SIZE]; //g
 		unsigned int rx_data_count, tx_data_count; //g
  
 
@@ -118,22 +147,31 @@ class Donnie : public ThreadedDriver{
 		player_devaddr_t m_dio_addr;  
 		// My ranger interface
 		player_devaddr_t m_ranger_addr;
-		// My position interface
+		// My Neck position interface
+		player_devaddr_t m_neck_position_addr;
+		// My odometry interface
 		player_devaddr_t m_position_addr;
-		player_position2d_data_t m_pos_data;  
 		// My bumper interface
 		player_devaddr_t bumper_addr;
 		// My power interface
 		player_devaddr_t power_addr;
+		// My Odometry interface
+
+		//Odometry data
+		player_position2d_data_t m_pos_data;
+
+		// Odometry stuff
+		int32_t last_posLeft;
+		int32_t last_posRight;
 
 		//robot geometry members
-		double m_width;
-		double m_length;
-		double m_height;
+		double robot_width;
+		double robot_length;
+		double robot_height;
 
 		//robot parameters 
-		double k_linear_max_vel;
-		double k_ang_max_vel;
+		double linear_max_vel;
+		double ang_max_vel;
 
 
 		virtual int MainSetup();
@@ -176,9 +214,11 @@ extern "C"{
 // Constructor.  Retrieve options from the configuration file and do any
 // pre-Setup() setup.
 Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
-	memset(&m_pos_data, 0, sizeof(player_position2d_data_t));  //descobrir o porque disso //g
-  memset (&this->power_addr, 0, sizeof (player_devaddr_t));
-  memset (&this->bumper_addr, 0, sizeof (player_devaddr_t));
+	// zero ids, so that we'll know later which interfaces were
+	memset (&m_pos_data, 0, sizeof(player_position2d_data_t));  //descobrir o porque disso //g
+	memset (&this->power_addr, 0, sizeof (player_devaddr_t));
+	memset (&this->bumper_addr, 0, sizeof (player_devaddr_t));
+	memset (&this->m_position_addr, 0, sizeof(player_devaddr_t));
 
 
 	// Create dio interface
@@ -203,9 +243,19 @@ Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
 			SetError(-1);
 			return;
 	 }
-
-		// Create my position interface
-	 if (cf->ReadDeviceAddr(&(this->m_position_addr), section, "provides", PLAYER_POSITION2D_CODE, -1, NULL)){
+	 	// Create my neck position interface
+	 if (cf->ReadDeviceAddr(&(this->m_neck_position_addr), section, "provides", PLAYER_POSITION2D_CODE, -1, "neck")){
+			PLAYER_ERROR("Could not read position2d ID ");
+			SetError(-1);
+			return;
+	 }
+	 if (AddInterface(this->m_neck_position_addr)){
+			PLAYER_ERROR("Could not add position2d interface ");
+			SetError(-1);    
+			return;
+	 }
+		// Create my base position interface
+	 if (cf->ReadDeviceAddr(&(this->m_position_addr), section, "provides", PLAYER_POSITION2D_CODE, -1, "base")){
 			PLAYER_ERROR("Could not read position2d ID ");
 			SetError(-1);
 			return;
@@ -215,6 +265,7 @@ Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
 			SetError(-1);    
 			return;
 	 }
+
 	 // Create my bumper interface
 		if (cf->ReadDeviceAddr (&(this->bumper_addr),section,"provides",PLAYER_BUMPER_CODE, -1, NULL)){
 			PLAYER_ERROR("Could not read bumper interface ");
@@ -236,31 +287,34 @@ Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
     	PLAYER_ERROR("Could not add power interface ");
 	  	this->SetError (-1);
 	  	return;
-		}
+	}
 	 
-		port = cf->ReadString (section, "port", "/dev/ttyACM0");
-		m_width = cf->ReadFloat(section, "width", 0.2);    // [m]
-		m_length = cf->ReadFloat(section, "length", 0.2);  // [m]
-		m_height = cf->ReadFloat(section, "height", 0.1);  // [m]
+	port = cf->ReadString (section, "port", "/dev/ttyACM0");
+	robot_width = cf->ReadFloat(section, "width", 0.2);    // [m]
+	robot_length = cf->ReadFloat(section, "length", 0.2);  // [m]
+	robot_height = cf->ReadFloat(section, "height", 0.1);  // [m]
 
-		k_linear_max_vel = cf->ReadFloat(section, "k_linear_max_vel", 10); 
-		k_ang_max_vel = cf->ReadFloat(section, "k_ang_max_vel", 10);
+	linear_max_vel = cf->ReadFloat(section, "linear_max_vel", 0.10); //[m/s] (0.10m/s -> 10cm/s)
+	ang_max_vel = cf->ReadFloat(section, "ang_max_vel", 0.10); //[rad/s]
 
 
 
-	 //this->RegisterProperty ("port", &this->port, cf, section);
-	 /*
-		m_baud_rate = cf->ReadInt(section, "baud", 38400);
-		m_quiet = cf->ReadBool(section, "quiet", TRUE);
-		robot_geom.size.sw = cf->ReadTupleFloat(section, "robot_geometry", 0, 0.01);
-		robot_geom.size.sl = cf->ReadTupleFloat(section, "robot_geometry", 1, 0.01);
-		*/
+	//this->RegisterProperty ("port", &this->port, cf, section);
+	/*
+	m_baud_rate = cf->ReadInt(section, "baud", 38400);
+	m_quiet = cf->ReadBool(section, "quiet", TRUE);
+	robot_geom.size.sw = cf->ReadTupleFloat(section, "robot_geometry", 0, 0.01);
+	robot_geom.size.sl = cf->ReadTupleFloat(section, "robot_geometry", 1, 0.01);
+	*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Set up the device.  Return 0 if things go well, and -1 otherwise.
 int Donnie::MainSetup(){   
 	puts("MainSetup driver initialising");
+	//reset variables
+	last_posLeft = 0;
+	last_posRight = 0;
 
 	arduino = new Serial(port.c_str());  //c_str() convert string to const char*
  
@@ -304,7 +358,8 @@ int Donnie::processIncomingData(){
 		else if(rx_data[0]==SYSTEMMESSAGEPACK) ProcessSystemMessageData();
 		else if(rx_data[0]==REQUESTCONFIGPACK) ProcessRequestConfig();
 		else if(rx_data[0]==PINGPACK) ProcessRequestPing();
-		else printf("unknown message, %.2X\n\n",rx_data[0]);
+		else if(rx_data[0]==ENCODERPACK) ProcessEncoderData();
+		else printf("unknown message, protocol type: %.2X\n\n",rx_data[0]);
 	}
 	return 0;
 }
@@ -312,6 +367,7 @@ int Donnie::processIncomingData(){
 ////////////////////////////////////////////////////////////////////////////////
 // Main function for device thread
 void Donnie::Main(){
+
 	// The main loop; interact with the device here
 	for(;;){
 		// test if we are supposed to cancel
@@ -332,7 +388,7 @@ void Donnie::Main(){
 
 int Donnie::ProcessMessage(QueuePointer & resp_queue, player_msghdr * hdr, void * data){
 	 // Handle new data comming from client
-	 PLAYER_WARN("New message received");
+	 PLAYER_WARN("New message received from client");
 	 if (Message::MatchMessage(hdr, PLAYER_MSGTYPE_CMD, PLAYER_DIO_CMD_VALUES, m_dio_addr)){
 			ProcessDioCommand(hdr, *reinterpret_cast<player_dio_cmd_t *>(data));
 			
@@ -343,6 +399,15 @@ int Donnie::ProcessMessage(QueuePointer & resp_queue, player_msghdr * hdr, void 
 			PLAYER_WARN("Dio data received");
 			return(0);
 	 }
+	 //neck position 2D
+	 else if (Message::MatchMessage(hdr, PLAYER_MSGTYPE_CMD, PLAYER_POSITION2D_CMD_VEL, m_neck_position_addr)){
+			//to use foo.SetSpeed (double aXSpeed, double aYawSpeed)
+			PLAYER_WARN("NECK position2d vel cmd received");
+			assert(hdr->size == sizeof(player_position2d_cmd_vel_t));
+			ProcessNeckPos2dVelCmd(hdr, *reinterpret_cast<player_position2d_cmd_vel_t *>(data));
+			return(0);
+	 }
+	 //base position 2D
 	 else if (Message::MatchMessage(hdr, PLAYER_MSGTYPE_CMD, PLAYER_POSITION2D_CMD_POS, m_position_addr)){
 			//to use foo.GoTo (player_pose2d_t pos, player_pose2d_t vel)
 			PLAYER_WARN("position2d goto cmd received");
@@ -392,6 +457,22 @@ void Donnie::ProcessDioCommand(player_msghdr_t* hdr, player_dio_cmd_t &data){
 	 Publish(m_dio_addr, PLAYER_MSGTYPE_DATA, PLAYER_DIO_CMD_VALUES, reinterpret_cast<void*>(&data), sizeof(data), NULL); //the NULL is the Timestamp and meens that the current time will be filled in) 
 }
 
+//NECK
+//foo.SetSpeed(double x, double pa)
+void Donnie::ProcessNeckPos2dVelCmd(player_msghdr_t* hdr, 
+						player_position2d_cmd_vel_t &data){
+	std::cout << "Pos2DVelCmd vel.px:" << data.vel.px << " vel.py:" << data.vel.py << " vel.pa:"<< data.vel.pa << std::endl; //bits qnt
+	std::cout << "Pos2DVelCmd state:" << std::hex << data.state << std::endl;
+	std::cout << std::endl;
+
+	tx_data_count=3;
+	tx_data[0]=SERVOPACK;
+	tx_data[1]=0x10;
+	tx_data[2]=(uint8_t)data.vel.pa;
+
+	arduino->writeData(tx_data,tx_data_count);
+}
+
 void Donnie::ProcessPos2dPosCmd(player_msghdr_t* hdr,
 																			player_position2d_cmd_pos_t &data){
 	std::cout << "Pos2DPosCmd pos.px:" << data.pos.px << " pos.py:" << data.pos.py << " pos.pa:"<< data.pos.pa << std::endl; //bits qnt
@@ -410,7 +491,7 @@ double map(double x, double in_min, double in_max, double out_min, double out_ma
 
 //foo.SetSpeed(double x, double pa)
 void Donnie::ProcessPos2dVelCmd(player_msghdr_t* hdr, 
-																			player_position2d_cmd_vel_t &data){
+						player_position2d_cmd_vel_t &data){
 	//double linear_r, angular_r;
 	double right_aux, left_aux,right_pwm, left_pwm;
 
@@ -419,22 +500,22 @@ void Donnie::ProcessPos2dVelCmd(player_msghdr_t* hdr,
 	std::cout << "Pos2DVelCmd state:" << std::hex << data.state << std::endl;
 	std::cout << std::endl;
 
-	//linear_r = data.vel.px*k_linear_max_vel;
-	//angular_r = data.vel.pa*k_ang_max_vel;
+	//linear_r = data.vel.px*linear_max_vel;
+	//angular_r = data.vel.pa*ang_max_vel;
 
 	//if(data.vel.px>maxSpeed) std::cout << "Valor acima da velocidade maxima: " << data.vel.px << std::endl;
 	
 	right_aux=data.vel.px + data.vel.pa;
 	left_aux=data.vel.px - data.vel.pa;
 
-	right_pwm = map(right_aux,0,k_linear_max_vel,0,255);
-	left_pwm = map(left_aux,0,k_linear_max_vel,0,255);
+	right_pwm = map(right_aux,0,linear_max_vel,0,255);
+	left_pwm = map(left_aux,0,linear_max_vel,0,255);
 
 
 	//std::cout << "right_pwm: " << right_pwm << std::endl;
  // std::cout << "left_pwm: " << left_pwm << std::endl;
 
-	tx_data_count=4;
+	tx_data_count=5;
 	tx_data[0]=MOTORPACK;
 	if(right_pwm>0){
 		tx_data[1]=0x0f;
@@ -445,19 +526,19 @@ void Donnie::ProcessPos2dVelCmd(player_msghdr_t* hdr,
 		tx_data[2]=(uint8_t)(-1*right_pwm);
 	}
 	if(left_pwm>0){
-		tx_data[3]=0x0f;
+		tx_data[3]=0xf0;
 		tx_data[4]=left_pwm;
 	}
 	else{
-		tx_data[3]=(uint8_t)0xf0;
+		tx_data[3]=(uint8_t)0x0f;
 		tx_data[4]=(uint8_t)(-1*left_pwm);
 	}
 
-	std::cout << "right_pwm: " << (int)tx_data[2] << std::endl;
-	std::cout << "left_pwm: " << (int)tx_data[4] << std::endl;
+	std::cout << "right_pwm: " << std::dec << (int)tx_data[2] << "dir: " << std::hex << tx_data[1] << std::endl;
+	std::cout << "left_pwm: " << std::dec << (int)tx_data[4] << "dir: " << std::hex << tx_data[3] << std::endl << std::endl;
 
 
-	//arduino->writeData(tx_data,tx_data_count);
+	arduino->writeData(tx_data,tx_data_count);
 
 
 }
@@ -469,9 +550,9 @@ void Donnie::ProcessPos2dGeomReq(player_msghdr_t* hdr){
 	geom.pose.px = m_pos_data.pos.px;                                           // [m]
 	geom.pose.py = m_pos_data.pos.py;                                           // [m]
 	geom.pose.pz = m_pos_data.pos.pa;                                           // [rad]
-	geom.size.sl = m_length;                                                    // [m]
-	geom.size.sw = m_width;                                                     // [m]
-	geom.size.sh = m_height;                                                    // [m]
+	geom.size.sl = robot_length;                                                    // [m]
+	geom.size.sw = robot_width;                                                     // [m]
+	geom.size.sh = robot_height;                                                    // [m]
 
 	Publish(m_position_addr, 
 				 PLAYER_MSGTYPE_RESP_ACK, PLAYER_POSITION2D_REQ_GET_GEOM, 
@@ -481,10 +562,10 @@ void Donnie::ProcessPos2dGeomReq(player_msghdr_t* hdr){
 
 
 void Donnie::ProcessDioData(){
-	printf("DIOPACK:");
+	/*printf("DIOPACK:");
 
 	for(int i=rx_data[1]-1;i>=0;i--) printf("%u",(rx_data[2] >> i) & 1); //show value as binary
-	printf("\n\n");                 
+	printf("\n\n");            */     
 
 	player_dio_data_t diodata;
 	diodata.count=rx_data[1]; 
@@ -497,11 +578,12 @@ void Donnie::ProcessDioData(){
 
 void Donnie::ProcessRangerData(){
 	uint8_t i;
+	/*
 	printf("RANGERPACK:");
 	for(i=0;i<rx_data_count-1;i++){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
-	printf("\n\n");
+	printf("\n\n");*/
 
 	player_ranger_data_range_t rangerdata;
 	memset( &rangerdata, 0, sizeof(rangerdata) );
@@ -520,11 +602,12 @@ void Donnie::ProcessRangerData(){
 
 void Donnie::ProcessBumperData(){
 	uint8_t i;
+	/*
 	printf("BUMPERPACK:");
 	for(i=0;i<rx_data_count-1;i++){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
-	printf("\n\n");
+	printf("\n\n");*/
 
 	player_bumper_data_t bumperdata;
 	memset(&bumperdata,0,sizeof(bumperdata));
@@ -545,11 +628,12 @@ void Donnie::ProcessBumperData(){
 
 void Donnie::ProcessPowerData(){
 	uint8_t i;
+	/*
 	printf("POWERPACK:");
 	for(i=0;i<rx_data_count-1;i++){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
-	printf("\n\n");
+	printf("\n\n");*/
 
 
 	player_power_data_t powerdata;
@@ -586,13 +670,14 @@ void Donnie::ProcessSystemMessageData(){
 
 void Donnie::ProcessRequestConfig(){
 	uint8_t i;
+	/*
 	printf("RECEIVED REQUEST CONFIG:");
 	for(i=0;i<rx_data_count-1;i++){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
-	printf("\n\n");
+	printf("\n\n");*/
 
-	puts("Sending Arduino Config...");
+	printf("RECEIVED REQUEST CONFIG. Sending Arduino Config...\n\n");
 	// update arduino config variables
 	tx_data_count=2;
 	tx_data[0]=CONFIGPACK;
@@ -607,10 +692,81 @@ void Donnie::ProcessRequestPing(){
 		for(i=0;i<rx_data_count-1;i++){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
-	printf("\n\n");
 
+	double elapsed = tmr.elapsed();
+    printf(", Time elapsed:%.2lf sec.\n",elapsed);
+
+
+
+
+	puts("Sending ping...");
 	tx_data_count=2;
 	tx_data[0]=PINGPACK;
 	tx_data[1]=43;
 	arduino->writeData(tx_data,tx_data_count);
+	printf("\n");
+}
+
+
+
+
+
+
+int32_t change_left = 0;
+	int32_t change_right = 0;
+	int32_t transchange = 0;
+	int32_t rotchange = 0;
+
+void Donnie::ProcessEncoderData(){
+	uint8_t i;/*
+	printf("ENCODERPACK:");
+	for(i=0;i<rx_data_count-1;i++){
+		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
+	}
+	printf("\n\n");
+	*/
+	int16_t ticksR = 0; 
+	int16_t ticksL = 0;
+	int16_t speedR = 0; 
+	int16_t speedL = 0;
+
+ 	ticksR = ticksR ^ rx_data[1];
+	ticksR = (ticksR << 8) ^ rx_data[2];  
+ 	ticksL = ticksL ^ rx_data[3]; 
+ 	ticksL = (ticksL << 8) ^ rx_data[4];  
+ 	ticksR = (int16_t)ticksR;
+ 	ticksL = (int16_t)ticksL;
+
+ 	
+ 	speedR = speedR ^ rx_data[5];
+	speedR = (speedR << 8) ^ rx_data[6];  
+ 	speedL = speedL ^ rx_data[7]; 
+ 	speedL = (speedL << 8) ^ rx_data[8];  
+ 	speedR = (int16_t)speedR;
+ 	speedL = (int16_t)speedL;
+
+ 	/*
+ 	ou um ou outro
+ 	speedR = (int16_t) rx_data[5];
+ 	speedL = (int16_t) rx_data[6];
+ 	*/
+
+
+	
+	//printf("ticksR:%d, ticksL:%d\n",ticksR,ticksL);
+	//rx_data[1]; //ticksR
+	//rx_data[2]; //ticksL
+
+	
+	this->m_pos_data.pos.px = ticksR;
+	this->m_pos_data.pos.py = ticksL;
+	this->m_pos_data.pos.pa = 42;
+	this->m_pos_data.vel.px = speedR;
+	this->m_pos_data.vel.py = speedL;
+	this->m_pos_data.vel.pa = 42;
+
+	//update odometry data (code source: server/drivers/mixed/wbr/914/wbr914.cc)
+    this->Publish(this->m_position_addr,
+		  PLAYER_MSGTYPE_DATA,PLAYER_POSITION2D_DATA_STATE,
+		  (void*)&(this->m_pos_data), sizeof(this->m_pos_data), NULL); //sizeof(player_position2d_data_t), NULL);
 }

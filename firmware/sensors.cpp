@@ -8,6 +8,7 @@ Ranger::Ranger(uint8_t echoPin,uint8_t trigPin){
 	setTrigPin(trigPin);
 }
 
+uint8_t Ranger::getData(){return range;}
 uint8_t Ranger::getRange(){return range;}
 uint8_t Ranger::getMaxRange(){return maxRange;}
 uint8_t Ranger::getMinRange(){return minRange;}
