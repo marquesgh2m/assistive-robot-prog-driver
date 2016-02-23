@@ -2,7 +2,7 @@
 .1. open the player drivers directory and clone the repository driver
 ```bash
 $ cd ~/player-3.0.2/examples/plugins/
-$ git clone https://github.com/lsa-pucrs/assistive-robot-prog.git -b driver-feature donnie
+$ git clone https://github.com/marquesgh2m/assistive-robot-prog-driver.git donnie
 ```
 .2. add the line ADD_SUBDIRECTORY (donnie) in the end of the file  "player-3.0.2/examples/plugins/CMakeLists.txt"
 ```bash
