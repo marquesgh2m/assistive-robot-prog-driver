@@ -61,7 +61,7 @@
 #define CENTRE_TO_WHEEL 0.135 //[m]
 #define PULSE_TO_RPM 1.83  //[rpm] (SEC_PR_MIN*MSEC_PR_SEC) / GEAR_RATIO / PULSES_PR_REV
 
-#define WHEEL_RADIUS 0.04 //[m]
+#define WHEEL_RADIUS  2.1 // [mm]0.04 //[m]
 #define WHEEL_DIAMETER (WHEEL_RADIUS*2)
 #define DEFAULT_AXLE_LENGTH	0.301
 
@@ -707,7 +707,7 @@ void Donnie::ProcessRequestConfig(){
 
 
 void Donnie::ProcessRequestPing(){
-	uint8_t i;
+	/*uint8_t i;
 	printf("RECEIVED REQUEST PING:");
 		for(i=0;i<rx_data_count-1;i++){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
@@ -719,7 +719,7 @@ void Donnie::ProcessRequestPing(){
 
 
 
-	puts("Sending ping...");
+	puts("Sending ping...");*/
 	tx_data_count=2;
 	tx_data[0]=PINGPACK;
 	tx_data[1]=43;
@@ -823,24 +823,42 @@ void Donnie::Odometry()
 {
 	int diff;// = abs(ticksR) - abs(ticksL);
 	float Dr,Dl,Dc;
-	if((this->m_pos_data.vel.px != 0) && (this->m_pos_data.vel.pa ==0)) //pf e pt
-	{
-		diff = abs(ticksR-lasttickR) - abs(ticksL-lasttickL);
-		th = PI/180*(diff*360/robot_cpr);
-		Dr= 2* PI* WHEEL_RADIUS * (ticksR-lasttickR)/cpr;//distancia que a roda r andou
-    	Dl= 2* PI* WHEEL_RADIUS * (ticksL-lasttickL)/cpr; //distancia que a roda l andou
-    	Dc= (Dr-Dl)/2; //o quanto o meio do robo andou.
-		x= x_ + Dc*cos(th);
-		y= y_ + Dc*sin(th);
 
-		x_ = x;
-		y_=y;
-		th_=th;
-	}
-	if ((this->m_pos_data.vel.px == 0) && (this->m_pos_data.vel.pa !=0))
-	{
-		diff = (abs(ticksR-lasttickR) + abs(ticksL-lasttickL))/2;
-		th = th_+ PI/180*(diff*360/robot_cpr);
+	if(ticksR!=0||ticksL!=0){
+		if((this->m_pos_data.vel.px != 0) && (this->m_pos_data.vel.pa ==0)) //pf e pt
+		{
+			//std::cout << "ticksR:" << ticksR << " ticksL:" << ticksL << std::endl;
+			//std::cout << "lasttickR:" << lasttickR << " lasttickL:" << lasttickL << std::endl;
+
+			diff = abs(ticksR-lasttickR) - abs(ticksL-lasttickL);
+			th = PI/180*(diff*360/robot_cpr);
+			Dr= 2* PI* WHEEL_RADIUS * (ticksR-lasttickR)/cpr;//distancia que a roda r andou
+	    	Dl= 2* PI* WHEEL_RADIUS * (ticksL-lasttickL)/cpr; //distancia que a roda l andou
+	    	Dc= (Dr+Dl)/2; //o quanto o meio do robo andou.
+			x= x_ + Dc *cos(th);
+			y= y_ + Dc *sin(th);
+			if(th>6.28||th<-6.28) th = th/6.28;
+			th_= th + th_;
+
+			x_ = x;
+			y_=y;
+
+			//std::cout << "==================================================" << std::endl;
+		}
+		if ((this->m_pos_data.vel.px == 0) && (this->m_pos_data.vel.pa > 0))
+		{
+			diff = (abs(ticksR-lasttickR) + abs(ticksL-lasttickL))/2;
+			th = th_ + PI/180*(diff*360/robot_cpr);
+			if(th>6.28||th<-6.28) th = th/6.28;
+			th_= th;
+		}
+		if ((this->m_pos_data.vel.px == 0) && (this->m_pos_data.vel.pa < 0))
+		{
+			diff = -1*(abs(ticksR-lasttickR) + abs(ticksL-lasttickL))/2;
+			th = th_ + PI/180*(diff*360/robot_cpr);
+			if(th>6.28||th<-6.28) th = th/6.28;
+			th_= th;
+		}
 	}
 	lasttickR=ticksR;
 	lasttickL=ticksL;
