@@ -24,18 +24,40 @@ class Motors
 {
   private:
     int defaultSpeed;//= 195;
-    int LimitSpeedHIGH;//= 200;
-    int LimitPIDSpeedLOW;//= 190;
+    int speedMax;//= 200;
+    int SpeedMin;//= 190;
     volatile int16_t PIDSpeedL;
     volatile int16_t PIDSpeedR;
     double tempo;//=0;
     double controletempo;//=0;
     int erro;
-    int P;
     int D;
     int I;                                      
     int ultimoL;//=0
     int ultimoR;//=0
+    int8_t offsetR;
+		int8_t offsetL;
+		float kP;
+		float kI; // nao utilizado
+		float kD; // nao utilizado
+    //na declaração da classe:
+    int i;// -> mudar de nome, i é mais genérico que a vida
+    float setpoint; // valor de ticks que a gente quer controlar o PID. o "padrão", o nosso 100%
+    int iterations;
+    int number_of_cicles_wanted;
+	  float PR;
+	  float PL;
+    /*
+    iterations = número de vezes "ciclos" que ele vai testar 
+    number_of_cicles_wanted = tipo quantos ciclos que o PID vai atualizar..achoq ue a gente vai tirar isso mas so pra organizar a idéia.
+    No caso, a gente vai definir quantas vezes a gente quer realizar o teste. digamos que vai ser 1000x ciclos, então, 1000 iterações. Mas a gente vai executar o PID de 10 em 10 ciclos,
+    logo o numero de ciclos que a gente quer é 10.  O wanted ticks vai calcular a média das duas rodas (pra ter um valor aproximado de quanto a gente quer), dividido pela divisão de iterações/numerodeciclosdesejados.
+    Exemplo:
+    Executamos 1000x e queremos de 10 em 10. os ticks deram 432 e 425.
+    Vai ser a média desses dois, dividido por 100. 
+    */
+
+
   public:
 
     
@@ -44,18 +66,19 @@ class Motors
     volatile int counterL;//=0
     volatile int counterR;//=0
     
-    void init_Motors(int defSpeed, int SPEEDHIGH, int SPEEDLOW);
-    void setSpeed(int SpeedL, int SpeedR, int SPEEDHIGH, int SPEEDLOW);
-    void turn_right(int PIDSpeedL, int PIDSpeedR, int SPEEDHIGH, int SPEEDLOW,int angle);
-    void turn_left(int PIDSpeedL, int PIDSpeedR, int SPEEDHIGH, int SPEEDLOW,int angle);
-    void move_backward(int PIDSpeedL, int PIDSpeedR, int SPEEDHIGH, int SPEEDLOW);
-    void move_forward(int SpeedLeft, int SpeedRight, int SPEEDHIGH, int SPEEDLOW);
+    void init_Motors(int defSpeed, int newSpeedMax, int newSpeedMin);
+    void setSpeed(int SpeedL, int SpeedR, int newSpeedMax, int newSpeedMin);
+    void turn_right(int PIDSpeedL, int PIDSpeedR);
+    void turn_left(int PIDSpeedL, int PIDSpeedR);
+    void move_backward(int PIDSpeedL, int PIDSpeedR);
+    void move_forward(int SpeedLeft, int SpeedRight);
     void stop();
     void moveRightWheel(int motor, int speed, int direction);
     void moveLeftWheel(int motor, int speed, int direction);
     void control_movement();
     int16_t getSpeedR();
     int16_t getSpeedL();
+    void calibrate_motors(int Speed);
 };
 /*
 A method to initialize the motor control variables. The parameters are:
@@ -64,7 +87,7 @@ A method to initialize the motor control variables. The parameters are:
 14- SPEEDHIGH : how much the speed can vary upwards.
 15- SPEEDLOW : how much the speed can vary downwards.
 */
-void Motors::init_Motors(int defSpeed, int SPEEDHIGH, int SPEEDLOW)
+void Motors::init_Motors(int defSpeed, int newSpeedMax, int newSpeedMin)
 {
 
   MOTOR_R=1;
@@ -74,16 +97,30 @@ void Motors::init_Motors(int defSpeed, int SPEEDHIGH, int SPEEDLOW)
   defaultSpeed = defSpeed;
   PIDSpeedL= defSpeed;
   PIDSpeedR =defSpeed;
-  LimitSpeedHIGH =defSpeed + SPEEDHIGH; //200;
-  LimitPIDSpeedLOW = defSpeed - SPEEDLOW;//190;
+  speedMax = newSpeedMax; //200;
+  SpeedMin = newSpeedMin;//190;
   tempo = 0;
   controletempo = 0;
-  P = 0;
+  PR;
+  PL;
   D = 0; 
   I = 0;
+  kP=1; //0.05;
+	kD=0; //0.05;
+	kI=0; //0.05;
+
   erro=0;                                      
   ultimoL = 0;
   ultimoR = 0;
+  offsetR=3;
+	offsetL=-3;
+
+  i=0;// -> mudar de nome, i é mais genérico que a vida
+  setpoint=5; // valor de ticks que a gente quer controlar o PID. o "padrão", o nosso 100%
+  iterations=500;
+  number_of_cicles_wanted=20;
+
+
   pinMode(LBIN1,OUTPUT);
   pinMode(LBIN2,OUTPUT);
   pinMode(LPWMB,OUTPUT);
@@ -102,222 +139,169 @@ This method will set the speed of the wheels and defines what are their max and 
 3- SPEEDHIGH : how much the speed can vary upwards.
 4- SPEEDLOW : how much the speed can vary downwards.
 */
-void Motors::setSpeed(int SpeedLeft, int SpeedRight, int SPEEDHIGH, int SPEEDLOW)
+void Motors::setSpeed(int SpeedLeft, int SpeedRight, int newSpeedMax, int newSpeedMin)
 {
   PIDSpeedL = SpeedLeft;
   PIDSpeedR = SpeedRight;
-  LimitSpeedHIGH =defaultSpeed + SPEEDHIGH; //200;
-  LimitPIDSpeedLOW = defaultSpeed - SPEEDLOW;//190;
+  speedMax = newSpeedMax; //200;
+  SpeedMin = newSpeedMin;//190;
 }
+
 /*
-This method is used to spin the robot around it's own axis. How much the wheels need to turn is defined by how many tics the pololu encoders have to count. 
-As we only have this control, the error of the spin will be big, because we map 360 degrees with aproximally 23 tics. 
-The parameters of this methods are:
-1- PIDSpeedL : the speed of the left wheel.
-2- PIDSpeedR : the speed of the right wheel.
-3- SPEEDHIGH : how much the speed can vary upwards.
-4- SPEEDLOW : how much the speed can vary downwards.
-5- angle : the final angle from the current position.
- */
-void Motors::turn_right(int PIDSpeedL, int PIDSpeedR, int SPEEDHIGH, int SPEEDLOW, int angle)// 1,-1 para direita, -1,1 para esquerda
+	offsetR-=1;
+	offsetL+=1;
+	systemMsg("offsetR:"+String(offsetR));
+	systemMsg("offsetL:"+String(offsetL));
+		offsetR+=1;
+	offsetL-=1;
+	systemMsg("offsetR:"+String(offsetR));
+	systemMsg("offsetL:"+String(offsetL));
+
+
+	calibrate_motors(195);
+	*/
+
+void Motors::turn_right(int PIDSpeedL, int PIDSpeedR)// 1,-1 para direita, -1,1 para esquerda
 {
-   int number_of_ticks =  map(angle, 0,360,0,23);
+
+   //int number_of_ticks =  map(angle, 0,360,0,23);
    if((motorRActive==1) && (motorLActive==1))
    {
-      if((1*counterL<number_of_ticks) || (-1*counterR<number_of_ticks))
-      {
+     // if((1*counterL<number_of_ticks) || (-1*counterR<number_of_ticks))
+     // {
             moveRightWheel(MOTOR_R, PIDSpeedR, 1);
             moveLeftWheel(MOTOR_L, PIDSpeedL, 1);
-      }
-      else
-      {
-            moveRightWheel(MOTOR_R, 0, 0);
-            moveLeftWheel(MOTOR_L, 0, 0); 
-      }
+    //  }
+    //  else
+    //  {
+    //        moveRightWheel(MOTOR_R, 0, 0);
+    //        moveLeftWheel(MOTOR_L, 0, 0); 
+    //  }
    }  
 }
-/*
-This method is used to spin the robot around it's own axis. How much the wheels need to turn is defined by how many tics the pololu encoders have to count. 
-As we only have this control, the error of the spin will be big, because we map 360 degrees with aproximally 23 tics. 
-The parameters of this methods are:
-1- PIDSpeedL : the speed of the left wheel.
-2- PIDSpeedR : the speed of the right wheel.
-3- SPEEDHIGH : how much the speed can vary upwards.
-4- SPEEDLOW : how much the speed can vary downwards.
-5- angle : the final angle from the current position.
- */
-void Motors::turn_left(int PIDSpeedL, int PIDSpeedR, int SPEEDHIGH, int SPEEDLOW,int angle)// 1,-1 para direita, -1,1 para esquerda
+void Motors::turn_left(int PIDSpeedL, int PIDSpeedR)// 1,-1 para direita, -1,1 para esquerda
 {
 
-   int number_of_ticks =  map(angle, 0,360,0,23);
+   //int number_of_ticks =  map(angle, 0,360,0,23);
    if((motorRActive==1) && (motorLActive==1))
    {
-      if((-1*counterL<number_of_ticks) || (1*counterR<number_of_ticks))
-      {
+     // if((-1*counterL<number_of_ticks) || (1*counterR<number_of_ticks))
+      //{
             moveRightWheel(MOTOR_R, PIDSpeedR, 0);
             moveLeftWheel(MOTOR_L, PIDSpeedL, 0);
-      }
-      else
-      {
-            moveRightWheel(MOTOR_R, 0, 0);
-            moveLeftWheel(MOTOR_L, 0, 0); 
-      }
+  //    }
+  //    else
+  //    {
+  //          moveRightWheel(MOTOR_R, 0, 0);
+  //          moveLeftWheel(MOTOR_L, 0, 0); 
+  //    }
    }  
 }
-/*
- This method is used to move the robot backward. It has a PD (without an integral) controller that change the speed of the wheels, varying between the defined limits. It's parameters are:
-1- PIDSpeedL : the speed of the left wheel.
-2- PIDSpeedR : the speed of the right wheel.
-3- SPEEDHIGH : how much the speed can vary upwards.
-4- SPEEDLOW : how much the speed can vary downwards.
- */
-void Motors::move_backward(int PIDSpeedL, int PIDSpeedR, int SPEEDHIGH, int SPEEDLOW)
-{
-   setSpeed(PIDSpeedL, PIDSpeedR, SPEEDHIGH, SPEEDLOW);
-   moveLeftWheel(MOTOR_L, PIDSpeedL, 0);
-   moveRightWheel(MOTOR_R, PIDSpeedR, 1);
 
-        if(counterL < counterR)//when the left wheel it's faster then the right..
-        {
-          if(PIDSpeedL > LimitPIDSpeedLOW) //if the left speed can decrease speed...
-          {
-            P=(counterL-counterR)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(counterL-ultimoL)*kD/tempo;
-            //I = I + ((counterL-ultimoL) * kI) * tempo;
-            PIDSpeedL=PIDSpeedL+P+D+I;
-            moveLeftWheel(MOTOR_L, PIDSpeedL, 0);
-          }
-          else if(PIDSpeedR<LimitSpeedHIGH)//if the right speed can increse speed
-          {
-            P=(counterR-counterL)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(ultimoR-counterR)*kD/tempo;
-            //I = I + ((ultimoR-counterR) * kI) * tempo;
-            PIDSpeedR=PIDSpeedR+P+D+I;
-            moveRightWheel(MOTOR_R, PIDSpeedR, 1);
-          }
-          else// else change both speeds
-          {            
-            PIDSpeedL=PIDSpeedL+3;//PIDSpeedL+3;
-            moveLeftWheel(MOTOR_L, PIDSpeedL, 0);
-            PIDSpeedR=PIDSpeedR-3;
-            moveRightWheel(MOTOR_R, PIDSpeedR, 1);
-          }
-        }
-        else if(counterR < counterL)//when the right wheel it's faster then the left..
-        {
-           if(PIDSpeedR > LimitPIDSpeedLOW)//if the right speed can decrease speed...
-          {            
-            P=(counterR-counterL)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(counterR-ultimoR)*kD/tempo;
-            //I = I + ((counterR-ultimoR) * kI) * tempo;
-            PIDSpeedR=PIDSpeedR+P+D+I;
-            moveRightWheel(MOTOR_R, PIDSpeedR, 1);
-          }
-          else if(PIDSpeedL<LimitSpeedHIGH)//if the left speed can increse speed
-          {            
-            P=(counterL-counterR)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(ultimoL-counterL)*kD/tempo;
-            //I = I + ((ultimoL-counterL) * kI) * tempo;
-            PIDSpeedL=PIDSpeedL+P+D+I;
-            moveLeftWheel(MOTOR_L, PIDSpeedL, 0);
-          }
-           else// else change both speeds
-          {            
-            PIDSpeedL=PIDSpeedL-3;
-            moveLeftWheel(MOTOR_L, PIDSpeedL, 0);
-            PIDSpeedR=PIDSpeedR+3;
-            moveRightWheel(MOTOR_R, PIDSpeedR, 1);
-          }
-        }
-        //controletempo=millis();
-        //ultimoR=counterR;
-        //ultimoL=counterL;
-   
-   //I=0;
-   //moveRightWheel(MOTOR_R, 0, 1);
-   //moveLeftWheel(MOTOR_L, 0, 0); 
-}
-/*
- This method is used to move the robot forward. It has a PD (without an integral) controller that change the speed of the wheels, varying between the defined limits. It's parameters are:
-1- PIDSpeedL : the speed of the left wheel.
-2- PIDSpeedR : the speed of the right wheel.
-3- SPEEDHIGH : how much the speed can vary upwards.
-4- SPEEDLOW : how much the speed can vary downwards.
- */
-void Motors::move_forward(int SpeedL, int SpeedR, int SPEEDHIGH, int SPEEDLOW)
+void Motors::move_backward(int PIDSpeedL, int PIDSpeedR)
 {
-  /*systemMsg("motorRActive");
-  systemMsg(String(motorRActive));
-  systemMsg("motorLActive");
-  systemMsg(String(motorLActive));*/
-        if(counterL > counterR)//when the left wheel is faster than the right..
-        {
-          if(PIDSpeedL > LimitPIDSpeedLOW) //if the left speed can decrease speed...
-          {
-            P=(counterR-counterL)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(ultimoL-counterL)*kD/tempo;
-            //I = I + ((ultimoL-counterL) * kI) * tempo;
-            PIDSpeedL=PIDSpeedL+P+D+I;
-           // moveLeftWheel(MOTOR_L, PIDSpeedL, 1);
-          }
-          else if(PIDSpeedR < LimitSpeedHIGH)//if the right speed can increase speed...
-          {
-            P=(counterL-counterR)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(counterR-ultimoR)*kD/tempo;
-            //I = I + ((counterR-ultimoR) * kI) * tempo;
-            PIDSpeedR=PIDSpeedR+P+D+I;
-            //moveRightWheel(MOTOR_R, PIDSpeedR, 0);
-      
-          }
-          else// else change both speeds
-          {
-            PIDSpeedL=195;//PIDSpeedL+3;
-           // moveLeftWheel(MOTOR_L, PIDSpeedL, 1);
-            PIDSpeedR=195;//PIDSpeedR-3;
-           // moveRightWheel(MOTOR_R, PIDSpeedR, 0);
-          }
-        }
-        else if(counterR > counterL)//when the right wheel is faster than the left..
-        {
-           if(PIDSpeedR > LimitPIDSpeedLOW)//if the right speed can decrease speed...
-          {
-            P=(counterL-counterR)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(ultimoR-counterR)*kD/tempo;
-            //I = I + ((ultimoR-counterR) * kI) * tempo;
-            PIDSpeedR=PIDSpeedR+P+D+I;
-           // moveRightWheel(MOTOR_R, PIDSpeedR, 0);
-          }
-          else if(PIDSpeedL<LimitSpeedHIGH)//if the left speed can increase speed...
-          {
-            P=(counterR-counterL)*kP;
-            //tempo=(millis()-controletempo);
-            //D =(counterL-ultimoL)*kD/tempo;
-            PIDSpeedL=PIDSpeedL+P+D+I;
-            //moveLeftWheel(MOTOR_L, PIDSpeedL, 1);
-          }
-          else// else change both speeds
-          {
-            PIDSpeedL=195;//PIDSpeedL-3;
-            //moveLeftWheel(MOTOR_L, PIDSpeedL, 1);
-            PIDSpeedR=195;//PIDSpeedR+3;
-            //moveRightWheel(MOTOR_R, PIDSpeedR, 0);
-          }
-        }
-        moveLeftWheel(MOTOR_L, PIDSpeedL, 1);
-        moveRightWheel(MOTOR_R, PIDSpeedR, 0);
-        //controletempo=millis();
-        //ultimoR=counterR;
-        //ultimoL=counterL;
-   //I=0;
-   //moveRightWheel(MOTOR_R, 0, 0);
-   //moveLeftWheel(MOTOR_L, 0, 1); 
+  if(i>number_of_cicles_wanted)
+	{
+		if(counterR != counterL) 
+		{
+			PR = (setpoint - (-1*(counterR-ultimoR)))*kP;
+		  PL = (setpoint - (-1*(counterL-ultimoL)))*kP;
+	    PIDSpeedL=PIDSpeedL+PL;
+	    PIDSpeedR=PIDSpeedL+PR;
+
+			if(PIDSpeedR > 255) 
+			{
+				PIDSpeedR=255;
+			}	
+			if(PIDSpeedL > 255) 
+			{
+				PIDSpeedL = 255;
+			}
+			if(PIDSpeedR < 0)
+			{
+				PIDSpeedR=0;
+			}
+			if(PIDSpeedL < 0)
+			{
+				PIDSpeedL = 0;
+			}
+		}
+		ultimoR = counterR;
+		ultimoL = counterL;
+		i=0;
+	}
+	else
+	{
+		i++;
+	}
+  moveRightWheel(MOTOR_R, PIDSpeedR+-1*offsetR, 1);
+	moveLeftWheel(MOTOR_L, PIDSpeedL+-1*offsetL, 0);
+}
+
+
+void Motors::move_forward(int SpeedL, int SpeedR)
+{
+	if(i>number_of_cicles_wanted)
+	{
+		if(counterR != counterL) 
+		{
+			PR = (setpoint - (counterR-ultimoR))*kP;
+		  PL = (setpoint - (counterL-ultimoL))*kP;
+	    PIDSpeedL=PIDSpeedL+PL;
+	    PIDSpeedR=PIDSpeedL+PR;
+
+			if(PIDSpeedR > 255) 
+			{
+				PIDSpeedR=255;
+			}	
+			if(PIDSpeedL > 255) 
+			{
+				PIDSpeedL = 255;
+			}
+			if(PIDSpeedR < 0)
+			{
+				PIDSpeedR=0;
+			}
+			if(PIDSpeedL < 0)
+			{
+				PIDSpeedL = 0;
+			}
+		}
+		ultimoR = counterR;
+		ultimoL = counterL;
+		i=0;
+	}
+	else
+	{
+		i++;
+	}
+  moveRightWheel(MOTOR_R, PIDSpeedR+offsetR, 0);
+	moveLeftWheel(MOTOR_L, PIDSpeedL+offsetL, 1);
+}
+
+void Motors::calibrate_motors(int Speed)
+{
+	if(i<iterations)
+	{
+    moveLeftWheel(MOTOR_L, Speed, 1);
+    moveRightWheel(MOTOR_R, Speed, 0);
+		i++;
+	}
+	else
+	{
+    moveLeftWheel(MOTOR_L, 0, 1); //para motores
+    moveRightWheel(MOTOR_R, 0, 0);
+		float control=iterations/number_of_cicles_wanted;
+		float mediaR = counterR/control;
+		float mediaL = counterL/control;
+
+		setpoint = (mediaR+mediaL)/2;
+		i=0; 
+		systemMsg("setpoint!!!!!!!!!!!!!!!!!!!!!"+String(setpoint));
+		counterL=0;
+		counterR=0; 
+	}
+
 }
 
 void Motors::moveRightWheel(int motor, int speed, int direction) 
@@ -366,6 +350,8 @@ void Motors::moveLeftWheel(int motor, int speed, int direction)
 void Motors::stop(){
   //enable standby  
   digitalWrite(STBY, LOW); 
+  counterR=0;
+  counterL=0;
 }
 
 /*
@@ -376,25 +362,25 @@ void Motors::control_movement()
   if((motorRActive==1) && (motorLActive==1)){
 	  if(motorLTurn==1 && motorRTurn==0) //move forward
 	  {
-	    move_forward(motorLspeed,motorRspeed,10,10);
+	    move_forward(motorLspeed,motorRspeed);
 	    //counterL=0;
 	    //counterR=0;
 	  }
 	  else if ((motorLTurn==0) && (motorRTurn==1))//mofe backward
 	  {
-	    move_backward(motorLspeed,motorRspeed,10,10);
+	    move_backward(motorLspeed,motorRspeed);
 	    //counterL=0;
 	    //counterR=0;
 	  }
 	  else if(motorLTurn==1 && motorRTurn==1)//turn right
 	  {
-	    turn_right(150,150,10,10,92);
+	    turn_right(150,150);
 	    //counterL=0;
 	    //counterR=0;
 	  }
 	  else if(motorLTurn==0 && motorRTurn==0)//turn left
 	  {
-	    turn_left(150,150,10,10,90);
+	    turn_left(150,150);
 	    //counterL=0;
 	    //counterR=0;
 	  }
@@ -408,6 +394,8 @@ int16_t Motors::getSpeedR(){
 int16_t Motors::getSpeedL(){
 	return PIDSpeedL;
 }
+
+
 
 
 
@@ -456,83 +444,6 @@ void motorsUpdate()
 {
   m.control_movement();
 }
-
-/*
-void loop()
-{
-  m.control_movement();
-  
-Serial.print("1-");
-Serial.print(m.counterL);
-Serial.print(" ");
-Serial.println(m.counterR);
-
-motorRActive=0;
-motorRTurn=0;
-motorLActive=0;
-motorLTurn=0;
-}*/
-
-
-/*
-
-void moveBackward(uint8_t speed){
-  digitalWrite(STBY, HIGH); //disable standby
-  //Left Motor
-  digitalWrite(AIN1, HIGH);
-  digitalWrite(AIN2, LOW);
-  analogWrite(PWMA, speed);
-  //Right Motor
-  digitalWrite(BIN1, HIGH);
-  digitalWrite(BIN2, LOW);
-  analogWrite(PWMB, speed);
-}
-
-void moveFoward(uint8_t speed){
-  digitalWrite(STBY, HIGH); //disable standby
-  //Left Motor
-  digitalWrite(AIN1, LOW);
-  digitalWrite(AIN2, HIGH);
-  analogWrite(PWMA, speed);
-  //Right Motor
-  digitalWrite(BIN1, LOW);
-  digitalWrite(BIN2, HIGH);
-  analogWrite(PWMB, speed);
-}
-
-void rotateLeft(uint8_t speed){
-  digitalWrite(STBY, HIGH); //disable standby
-  //Left Motor
-  digitalWrite(AIN1, LOW);
-  digitalWrite(AIN2, HIGH);
-  analogWrite(PWMA, speed);
-  //Right Motor
-  digitalWrite(BIN1, HIGH);
-  digitalWrite(BIN2, LOW);
-  analogWrite(PWMB, speed);
-}
-
-void rotateRight(uint8_t speed){
-  digitalWrite(STBY, HIGH); //disable standby
-  //Left Motor
-  digitalWrite(AIN1, HIGH);
-  digitalWrite(AIN2, LOW);
-  analogWrite(PWMA, speed);
-  //Right Motor
-  digitalWrite(BIN1, LOW);
-  digitalWrite(BIN2, HIGH);
-  analogWrite(PWMB, speed);
-}
-
-void stop(){
-  //enable standby  
-  digitalWrite(STBY, LOW); 
-}
-
-
-
-*/
-
 
 
 

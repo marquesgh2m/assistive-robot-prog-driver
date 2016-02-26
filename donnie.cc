@@ -47,6 +47,7 @@
 
 #include <iostream>
 #include <sys/time.h>
+ #include <cmath>
 
 
 #define BUFFER_SIZE 200
@@ -111,7 +112,6 @@ class Donnie : public ThreadedDriver{
 		void ProcessPos2dPosCmd(player_msghdr_t* hdr, player_position2d_cmd_pos_t &data);
 		void ProcessPos2dGeomReq(player_msghdr_t* hdr);
 
-
 		void ProcessDioData();
 		void ProcessRangerData();
 		void ProcessBumperData();
@@ -120,7 +120,8 @@ class Donnie : public ThreadedDriver{
 		void ProcessRequestConfig();
 		void ProcessRequestPing();
 		void ProcessEncoderData();
-		
+		void Odometry();
+
 	/*  
 	Definition:
 
@@ -160,9 +161,12 @@ class Donnie : public ThreadedDriver{
 		//Odometry data
 		player_position2d_data_t m_pos_data;
 
+
 		// Odometry stuff
 		int32_t last_posLeft;
 		int32_t last_posRight;
+		int16_t ticksR; 
+		int16_t ticksL;
 
 		//robot geometry members
 		double robot_width;
@@ -315,6 +319,9 @@ int Donnie::MainSetup(){
 	//reset variables
 	last_posLeft = 0;
 	last_posRight = 0;
+	ticksR = 0;
+	ticksL = 0;
+
 
 	arduino = new Serial(port.c_str());  //c_str() convert string to const char*
  
@@ -388,7 +395,7 @@ void Donnie::Main(){
 
 int Donnie::ProcessMessage(QueuePointer & resp_queue, player_msghdr * hdr, void * data){
 	 // Handle new data comming from client
-	 PLAYER_WARN("New message received from client");
+	 //PLAYER_WARN("New message received from client");
 	 if (Message::MatchMessage(hdr, PLAYER_MSGTYPE_CMD, PLAYER_DIO_CMD_VALUES, m_dio_addr)){
 			ProcessDioCommand(hdr, *reinterpret_cast<player_dio_cmd_t *>(data));
 			
@@ -417,7 +424,7 @@ int Donnie::ProcessMessage(QueuePointer & resp_queue, player_msghdr * hdr, void 
 	 }
 	 else if (Message::MatchMessage(hdr, PLAYER_MSGTYPE_CMD, PLAYER_POSITION2D_CMD_VEL, m_position_addr)){
 			//to use foo.SetSpeed (double aXSpeed, double aYawSpeed)
-			PLAYER_WARN("position2d vel cmd received");
+			//PLAYER_WARN("position2d vel cmd received");
 			assert(hdr->size == sizeof(player_position2d_cmd_vel_t));
 			ProcessPos2dVelCmd(hdr, *reinterpret_cast<player_position2d_cmd_vel_t *>(data));
 			return(0);
@@ -496,9 +503,9 @@ void Donnie::ProcessPos2dVelCmd(player_msghdr_t* hdr,
 	double right_aux, left_aux,right_pwm, left_pwm;
 
 
-	std::cout << "Pos2DVelCmd vel.px:" << data.vel.px << " vel.py:" << data.vel.py << " vel.pa:"<< data.vel.pa << std::endl; //bits qnt
-	std::cout << "Pos2DVelCmd state:" << std::hex << data.state << std::endl;
-	std::cout << std::endl;
+	//std::cout << "Pos2DVelCmd vel.px:" << data.vel.px << " vel.py:" << data.vel.py << " vel.pa:"<< data.vel.pa << std::endl; //bits qnt
+	//std::cout << "Pos2DVelCmd state:" << std::hex << data.state << std::endl;
+	//std::cout << std::endl;
 
 	//linear_r = data.vel.px*linear_max_vel;
 	//angular_r = data.vel.pa*ang_max_vel;
@@ -534,12 +541,25 @@ void Donnie::ProcessPos2dVelCmd(player_msghdr_t* hdr,
 		tx_data[4]=(uint8_t)(-1*left_pwm);
 	}
 
-	std::cout << "right_pwm: " << std::dec << (int)tx_data[2] << "dir: " << std::hex << tx_data[1] << std::endl;
-	std::cout << "left_pwm: " << std::dec << (int)tx_data[4] << "dir: " << std::hex << tx_data[3] << std::endl << std::endl;
+	//std::cout << "right_pwm: " << std::dec << (int)tx_data[2] << "dir: " << std::hex << tx_data[1] << std::endl;
+	//std::cout << "left_pwm: " << std::dec << (int)tx_data[4] << "dir: " << std::hex << tx_data[3] << std::endl << std::endl;
 
 
 	arduino->writeData(tx_data,tx_data_count);
+	/*
+	this->m_pos_data.pos.px = x_;
+	this->m_pos_data.pos.py = y_;
+	this->m_pos_data.pos.pa = th_;*/
+	this->m_pos_data.vel.px = data.vel.px;
+	//this->m_pos_data.vel.py = speedL;
+	this->m_pos_data.vel.pa = data.vel.pa;
 
+	//update odometry data (code source: server/drivers/mixed/wbr/914/wbr914.cc)
+    this->Publish(this->m_position_addr,
+		  PLAYER_MSGTYPE_DATA,PLAYER_POSITION2D_DATA_STATE,
+		  (void*)&(this->m_pos_data), sizeof(this->m_pos_data), NULL); //sizeof(player_position2d_data_t), NULL);
+
+	Odometry();
 
 }
 
@@ -724,18 +744,18 @@ void Donnie::ProcessEncoderData(){
 		printf("%.2X",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
 	printf("\n\n");
-	*/
-	int16_t ticksR = 0; 
-	int16_t ticksL = 0;
+	*/	
+	int16_t auxTicksR = 0; 
+	int16_t auxTicksL = 0;
 	int16_t speedR = 0; 
 	int16_t speedL = 0;
 
- 	ticksR = ticksR ^ rx_data[1];
-	ticksR = (ticksR << 8) ^ rx_data[2];  
- 	ticksL = ticksL ^ rx_data[3]; 
- 	ticksL = (ticksL << 8) ^ rx_data[4];  
- 	ticksR = (int16_t)ticksR;
- 	ticksL = (int16_t)ticksL;
+ 	auxTicksR = auxTicksR ^ rx_data[1];
+	auxTicksR = (auxTicksR << 8) ^ rx_data[2];  
+ 	auxTicksL = auxTicksL ^ rx_data[3]; 
+ 	auxTicksL = (auxTicksL << 8) ^ rx_data[4];  
+ 	auxTicksR = (int16_t)auxTicksR;
+ 	auxTicksL = (int16_t)auxTicksL;
 
  	
  	speedR = speedR ^ rx_data[5];
@@ -745,6 +765,10 @@ void Donnie::ProcessEncoderData(){
  	speedR = (int16_t)speedR;
  	speedL = (int16_t)speedL;
 
+
+ 	this->ticksR = auxTicksR;
+ 	this->ticksL = auxTicksL;
+ 	Odometry();
  	/*
  	ou um ou outro
  	speedR = (int16_t) rx_data[5];
@@ -757,13 +781,76 @@ void Donnie::ProcessEncoderData(){
 	//rx_data[1]; //ticksR
 	//rx_data[2]; //ticksL
 
-	
+	/*
 	this->m_pos_data.pos.px = ticksR;
 	this->m_pos_data.pos.py = ticksL;
 	this->m_pos_data.pos.pa = 42;
 	this->m_pos_data.vel.px = speedR;
 	this->m_pos_data.vel.py = speedL;
 	this->m_pos_data.vel.pa = 42;
+
+	//update odometry data (code source: server/drivers/mixed/wbr/914/wbr914.cc)
+    this->Publish(this->m_position_addr,
+		  PLAYER_MSGTYPE_DATA,PLAYER_POSITION2D_DATA_STATE,
+		  (void*)&(this->m_pos_data), sizeof(this->m_pos_data), NULL); //sizeof(player_position2d_data_t), NULL);
+*/
+}
+
+
+
+
+
+
+
+/*
+#define PI 3.141592653
+#define DIAMETER 0.44 //[m]
+#define RADIUS (DONNIE_DIAMETER * 0.5) //[m]
+#define CIRCUMFERENCE (2 * PI * DONNIE_RADIUS) //[m]
+#define CENTRE_TO_WHEEL 0.135 //[m]
+#define PULSE_TO_RPM 1.83  //[rpm] (SEC_PR_MIN*MSEC_PR_SEC) / GEAR_RATIO / PULSES_PR_REV
+
+#define WHEEL_RADIUS 0.04 //[m]
+#define WHEEL_DIAMETER (WHEEL_RADIUS*2)
+#define DEFAULT_AXLE_LENGTH	0.301
+*/
+
+float x=0,x_=0,y=0,y_=0,th=0,th_=0;
+int robot_cpr = 23;//count per revolution
+int cpr = 12;
+int lasttickR=0,lasttickL=0;
+void Donnie::Odometry()
+{
+	int diff;// = abs(ticksR) - abs(ticksL);
+	float Dr,Dl,Dc;
+	if((this->m_pos_data.vel.px != 0) && (this->m_pos_data.vel.pa ==0)) //pf e pt
+	{
+		diff = abs(ticksR-lasttickR) - abs(ticksL-lasttickL);
+		th = PI/180*(diff*360/robot_cpr);
+		Dr= 2* PI* WHEEL_RADIUS * (ticksR-lasttickR)/cpr;//distancia que a roda r andou
+    	Dl= 2* PI* WHEEL_RADIUS * (ticksL-lasttickL)/cpr; //distancia que a roda l andou
+    	Dc= (Dr-Dl)/2; //o quanto o meio do robo andou.
+		x= x_ + Dc*cos(th);
+		y= y_ + Dc*sin(th);
+
+		x_ = x;
+		y_=y;
+		th_=th;
+	}
+	if ((this->m_pos_data.vel.px == 0) && (this->m_pos_data.vel.pa !=0))
+	{
+		diff = (abs(ticksR-lasttickR) + abs(ticksL-lasttickL))/2;
+		th = th_+ PI/180*(diff*360/robot_cpr);
+	}
+	lasttickR=ticksR;
+	lasttickL=ticksL;
+
+	this->m_pos_data.pos.px = x_;
+	this->m_pos_data.pos.py = y_;
+	this->m_pos_data.pos.pa = th_;
+	/*this->m_pos_data.vel.px = speedR;
+	this->m_pos_data.vel.py = speedL;
+	this->m_pos_data.vel.pa = 42;*/
 
 	//update odometry data (code source: server/drivers/mixed/wbr/914/wbr914.cc)
     this->Publish(this->m_position_addr,

@@ -56,9 +56,9 @@ USAR IDE ARDUINO 1.2 OU SUPERIOR
 #define pololuBL 34
 #define pololuAR 1 //pin 3
 #define pololuBR 33
-#define kP 3
-#define kI 0 // nao utilizado
-#define kD 0 // nao utilizado
+//#define kP 3
+//#define kI 0 // nao utilizado
+//#define kD 0 // nao utilizado
 
 /*
 

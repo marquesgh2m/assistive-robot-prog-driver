@@ -321,8 +321,8 @@ int main(int argc, char** argv){
 			cout << "  => Vib2, Vib1, Buzzer, Comm, Power.";
 			cout << endl;
 
-			cout << "LTicks:" << mymotors.GetYPos() << " RTicks:" << mymotors.GetXPos() << endl;
-			cout << "LSpeed:" << mymotors.GetYSpeed() << " RSpeed:" << mymotors.GetXSpeed() << endl;
+			cout << "XPOS:" << mymotors.GetXPos() << " YPOS:" << mymotors.GetYPos() << " YawPOS:" << mymotors.GetYaw() << endl;
+			cout << "LSpeed:" << mymotors.GetYSpeed() << " Xspeed:" << mymotors.GetXSpeed() << endl;
 
 			cout << "Power charge:" << mypower.GetCharge() << " Power percent:" << mypower.GetPercent() << " Power valid:" << mypower.IsValid() << endl;
 
@@ -367,8 +367,8 @@ int main(int argc, char** argv){
 			cout << "  => Vib2, Vib1, Buzzer, Comm, Power.";
 			cout << endl;
 
-			cout << "LTicks:" << mymotors.GetYPos() << " RTicks:" << mymotors.GetXPos() << endl;
-			cout << "LSpeed:" << mymotors.GetYSpeed() << " RSpeed:" << mymotors.GetXSpeed() << endl;
+			cout << "XPOS:" << mymotors.GetXPos() << "YPOS:" << mymotors.GetYPos() << "YawPOS:" << mymotors.GetYaw() << endl;
+			cout << "LSpeed:" << mymotors.GetYSpeed() << " Xspeed:" << mymotors.GetXSpeed() << endl;
 
 			cout << "Power charge:" << mypower.GetCharge() << " Power percent:" << mypower.GetPercent() << " Power valid:" << mypower.IsValid() << endl;
 
