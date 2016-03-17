@@ -121,6 +121,7 @@ class Donnie : public ThreadedDriver{
 		void ProcessRequestPing();
 		void ProcessEncoderData();
 		void Odometry();
+		void FloatToBytes(float value, uint8_t *data);
 
 	/*  
 	Definition:
@@ -176,6 +177,17 @@ class Donnie : public ThreadedDriver{
 		//robot parameters 
 		double linear_max_vel;
 		double ang_max_vel;
+
+
+		double pid_kp; 
+		double pid_ki; 
+		double pid_kd; 
+		double pid_setpoint;
+		int pid_offset_r;
+		int pid_offset_l;
+
+
+
 
 
 		virtual int MainSetup();
@@ -301,6 +313,12 @@ Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
 	linear_max_vel = cf->ReadFloat(section, "linear_max_vel", 0.10); //[m/s] (0.10m/s -> 10cm/s)
 	ang_max_vel = cf->ReadFloat(section, "ang_max_vel", 0.10); //[rad/s]
 
+	pid_kp = cf->ReadFloat(section, "pid_kp", 0); 
+	pid_ki = cf->ReadFloat(section, "pid_ki", 0); 
+	pid_kd = cf->ReadFloat(section, "pid_kd", 0); 
+	pid_setpoint = cf->ReadFloat(section, "pid_setpoint", 0.);
+	pid_offset_r = cf->ReadInt(section, "pid_offset_r", 0);
+	pid_offset_l = cf->ReadInt(section, "pid_offset_l", 0);
 
 
 	//this->RegisterProperty ("port", &this->port, cf, section);
@@ -665,6 +683,8 @@ void Donnie::ProcessPowerData(){
   aux = (aux << 8) ^ rx_data[1];   //0001 & 0100 = 0101
 
 
+
+
   // Update power data
 	powerdata.volts = (float)aux/1000; // rx_data[1];  //float [V]
 	//powerdata.watts = voltage * current;
@@ -680,11 +700,11 @@ void Donnie::ProcessPowerData(){
 
 void Donnie::ProcessSystemMessageData(){
 	uint8_t i;
-	printf("SYSTEM MESSAGE:");
+	//printf("SYSTEM MESSAGE:");
 	for(i=0;i<rx_data_count-1;i++){
 		printf("%c",rx_data[i+1]); //+1 devido a prosicao zero ser o typo da mensagem
 	}
-	printf("\n\n");
+	//printf("\n\n");
 
 }
 
@@ -698,10 +718,39 @@ void Donnie::ProcessRequestConfig(){
 	printf("\n\n");*/
 
 	printf("RECEIVED REQUEST CONFIG. Sending Arduino Config...\n\n");
+
 	// update arduino config variables
-	tx_data_count=2;
-	tx_data[0]=CONFIGPACK;
-	tx_data[1]=42;
+	uint8_t converted[6]; //6 valor que caiba as conversoes
+	tx_data[0] = CONFIGPACK;
+
+	FloatToBytes(pid_kp,converted);
+	tx_data[1] = converted[0];
+	tx_data[2] = converted[1];
+	tx_data[3] = converted[2];
+	tx_data[4] = converted[3];
+
+	FloatToBytes(pid_ki,converted);
+	tx_data[5] = converted[0];
+	tx_data[6] = converted[1];
+	tx_data[7] = converted[2];
+	tx_data[8] = converted[3];
+
+	FloatToBytes(pid_kd,converted);
+	tx_data[9] = converted[0];
+	tx_data[10] = converted[1];
+	tx_data[11] = converted[2];
+	tx_data[12] = converted[3];
+
+	FloatToBytes(pid_setpoint,converted);
+	tx_data[13] = converted[0];
+	tx_data[14] = converted[1];
+	tx_data[15] = converted[2];
+	tx_data[16] = converted[3];
+
+	tx_data[17] = (int8_t)pid_offset_r;
+	tx_data[18] = (int8_t)pid_offset_l;
+
+	tx_data_count=19;
 	arduino->writeData(tx_data,tx_data_count);
 }
 
@@ -819,6 +868,7 @@ float x=0,x_=0,y=0,y_=0,th=0,th_=0;
 int robot_cpr = 23;//count per revolution
 int cpr = 12;
 int lasttickR=0,lasttickL=0;
+
 void Donnie::Odometry()
 {
 	int diff;// = abs(ticksR) - abs(ticksL);
@@ -874,4 +924,21 @@ void Donnie::Odometry()
     this->Publish(this->m_position_addr,
 		  PLAYER_MSGTYPE_DATA,PLAYER_POSITION2D_DATA_STATE,
 		  (void*)&(this->m_pos_data), sizeof(this->m_pos_data), NULL); //sizeof(player_position2d_data_t), NULL);
+}
+
+
+void Donnie::FloatToBytes(float value, uint8_t *data){
+	memset (data, 0, sizeof(data));
+    //This creates a new union type in wich all its member elements occupy the same physical space in memory
+	union {
+	  float f;
+	  uint8_t b[3]; //u.b[3] = b0;
+	} u;
+
+	u.f = value;
+
+    data[0] = u.b[3];
+    data[1] = u.b[2];
+    data[2] = u.b[1];
+    data[3] = u.b[0];
 }

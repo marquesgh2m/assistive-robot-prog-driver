@@ -78,7 +78,14 @@ class Motors
     void control_movement();
     int16_t getSpeedR();
     int16_t getSpeedL();
-    void calibrate_motors(int Speed);
+		void calibrate_motors(int Speed);
+		void setKP(float kP);
+		void setKI(float kI);
+		void setKD(float kD);
+		void setSetpoint(float setpoint);
+		void setOffsetR(int8_t offsetR);
+		void setOffsetL(int8_t offsetR);
+
 };
 /*
 A method to initialize the motor control variables. The parameters are:
@@ -241,6 +248,13 @@ void Motors::move_backward(int PIDSpeedL, int PIDSpeedR)
 
 void Motors::move_forward(int SpeedL, int SpeedR)
 {
+	/*systemMsg("KP:"+String(kP)+"\n");
+	systemMsg("KI:"+String(kI)+"\n");
+	systemMsg("KD:"+String(kD)+"\n");
+	systemMsg("setpoint:"+String(setpoint)+"\n");
+	systemMsg("offsetR:"+String(offsetR)+"\n");
+	systemMsg("offsetL:"+String(offsetL)+"\n");
+	systemMsg("\n");*/
 	if(i>number_of_cicles_wanted)
 	{
 		if(counterR != counterL) 
@@ -394,6 +408,24 @@ int16_t Motors::getSpeedR(){
 int16_t Motors::getSpeedL(){
 	return PIDSpeedL;
 }
+void Motors::setSetpoint(float setpoint_){
+	setpoint = setpoint_;
+}
+void Motors::setOffsetR(int8_t offsetR_){
+	offsetR = offsetR_;
+}
+void Motors::setOffsetL(int8_t offsetL_){
+	offsetL = offsetL_;
+}
+void Motors::setKP(float kP_){
+	kP = kP_;
+}
+void Motors::setKI(float kI_){
+	kI = kI_;
+}
+void Motors::setKD(float kD_){
+	kD = kD_;
+}
 
 
 
@@ -444,7 +476,6 @@ void motorsUpdate()
 {
   m.control_movement();
 }
-
 
 
 

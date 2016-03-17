@@ -31,14 +31,34 @@ uint32_t millisTimeStamp;
 //SENSORS DATA GLOBAL VARIABLES 
 uint8_t systemDio_data = 0;
 
+float BytesToFloat(uint8_t *data, uint8_t first){
+	uint8_t aux[4];
+	aux[0] = data[first];
+	aux[1] = data[first+1];
+	aux[2] = data[first+2];
+	aux[3] = data[first+3];
+	return BytesToFloat(aux);
+}
+float BytesToFloat(uint8_t *data){
+	union {
+	  float f;
+	  uint8_t b[3]; //u.b[3] = b0;
+	} u;
+
+	u.b[3]=data[0];
+	u.b[2]=data[1];
+	u.b[1]=data[2];
+	u.b[0]=data[3];
+	return u.f;
+}
 
 void processCommand(){  
 	if(receivedSystemDioCmd()){  //TODO trocar toda infraextrutura para SYSTEM_DIO_CMD //change state of the digital output
 		digitalWrite(PIN_LED_BATTERY, cmd.data[0] & 1);             //-------x
-		digitalWrite(PIN_LED_CONNECTION, (cmd.data[0] >> 1) & 1); //------x-
-		digitalWrite(PIN_VIBRATION_R, (cmd.data[0] >> 2) & 1);    //-----x--
-		digitalWrite(PIN_VIBRATION_L, (cmd.data[0] >> 3) & 1);    //----x---
-		digitalWrite(PIN_BUZZER, (cmd.data[0] >> 4) & 1);         //---x----
+		digitalWrite(PIN_LED_CONNECTION, (cmd.data[0] >> 1) & 1); 	//------x-
+		digitalWrite(PIN_BUZZER, (cmd.data[0] >> 2) & 1);         	//-----x--
+		digitalWrite(PIN_VIBRATION_L, (cmd.data[0] >> 3) & 1);   	//----x---
+		digitalWrite(PIN_VIBRATION_R, (cmd.data[0] >> 4) & 1);    	//---x----
 	}
 	else if(receivedPingCmd()){
 		lostConnectionFlag = 0;
@@ -54,6 +74,14 @@ void processCommand(){
 		//TODO --definir as configuracoes do servo--if(cmd.data[0]==SCAN//SETPOS//GOTO(POS,VEL))
 		//setNeckServoPos(cmd.data);
 		neckServo.write(cmd.data[1]);
+	}
+	else if(receivedConfigCmd()){
+		m.setKP(BytesToFloat(cmd.data,0));
+		m.setKI(BytesToFloat(cmd.data,4));
+		m.setKD(BytesToFloat(cmd.data,8));
+		m.setSetpoint(BytesToFloat(cmd.data,12));
+		m.setOffsetR(cmd.data[16]);
+		m.setOffsetL(cmd.data[17]);
 	}
 
 	

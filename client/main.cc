@@ -355,6 +355,8 @@ int main(int argc, char** argv){
 			system("clear");
 			puts("Reading from commands");
 			puts("---------------------------");
+			puts("pf pt pd pe = movimentation (foward backward right left)");
+			puts("o = set output (VR VL BZ LC LP)");
 			puts("q = teleop mode");
 			puts("---------------------------");
 
@@ -368,7 +370,7 @@ int main(int argc, char** argv){
 			cout << endl;
 
 			cout << "XPOS:" << mymotors.GetXPos() << "YPOS:" << mymotors.GetYPos() << "YawPOS:" << mymotors.GetYaw() << endl;
-			cout << "LSpeed:" << mymotors.GetYSpeed() << " Xspeed:" << mymotors.GetXSpeed() << endl;
+			cout << " XSpeed:" << mymotors.GetXSpeed() << "YSpeed:" << mymotors.GetYSpeed() << endl;
 
 			cout << "Power charge:" << mypower.GetCharge() << " Power percent:" << mypower.GetPercent() << " Power valid:" << mypower.IsValid() << endl;
 
@@ -431,16 +433,26 @@ int main(int argc, char** argv){
 				}
 			}
 			else if(option=="o"){
-				for(i=0;i<4;i++){
-					systemDio.SetOutput(8,0x77); //01110111 foward
-					robot.Read(); //update proxies
-					sleep(3);
+				string cmdValue;
+				cin >> cmdValue;
+				unsigned char value = 0;
 
-					systemDio.SetOutput(8,0x7f); //01111111 turn
-					robot.Read(); //update proxies
-					sleep(1.1);
-				}
-				systemDio.SetOutput(8,0); //stop
+				if(cmdValue.at(4)=='1') value |= 1 << 0; //-------x //set bit
+				else value &= ~(1 << 0); //clear bit
+
+				if(cmdValue.at(3)=='1') value |= 1 << 1; //------x- //set bit
+				else value &= ~(1 << 1); //clear bit
+
+				if(cmdValue.at(2)=='1') value |= 1 << 2; //-----x-- //set bit
+				else value &= ~(1 << 2); //clear bit
+
+				if(cmdValue.at(1)=='1') value |= 1 << 3; //----x--- //set bit
+				else value &= ~(1 << 3); //clear bit
+
+				if(cmdValue.at(0)=='1') value |= 1 << 4; //---x---- //set bit
+				else value &= ~(1 << 4); //clear bit
+
+				systemDio.SetOutput(8,value); //01110111 foward
 				robot.Read(); //update proxies
 			}
 			else if(option=="q") lastKey = 'q';
@@ -451,3 +463,5 @@ int main(int argc, char** argv){
 	robot.Read(); //update proxies  
   return(0);
 }
+
+
