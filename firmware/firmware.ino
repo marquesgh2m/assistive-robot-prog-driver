@@ -161,6 +161,7 @@ void sendData(){
 		//systemMsg("Mensagem default");
 		//convertToUint8_t(battery,2);
 	}
+
 	//if(counter % SEND_RANGER_FRQ == 0) sendEncoderTicks();
 }
 

@@ -232,6 +232,61 @@ void* keyboard_handler(void* arg)
 
 unsigned int neckServoPos = 90; 
 
+/*
+void foward(){
+	/*mymotors.SetSpeed(0.04,0);
+	int aux = atoi(cmdValue.c_str());
+
+				int atualXPos = mymotors.GetXPos();
+				lastXPos = atualXPos;
+				while(true){
+					robot.Read();
+					atualXPos = mymotors.GetXPos();
+					if(option.at(1)=='f'       && (atualXPos-lastXPos)>=aux) break;
+					else if (option.at(1)=='t' && (lastXPos-atualXPos)>=aux) break;
+				}
+				mymotors.SetSpeed(0,0); //stop motor
+				//sleep(atoi(cmdValue.c_str()));
+}
+
+void backward(){
+	
+}
+
+void right(){
+	
+}
+
+void left(){
+	
+}
+
+
+class Robot {
+	public:
+		Robot();
+
+	private:
+		/*PlayerClient robot;
+		DioProxy systemDio;
+		RangerProxy ranger;
+		Position2dProxy base;
+		Position2dProxy neck;
+		BumperProxy bumper;
+		PowerProxy power;
+
+};
+Robot::Robot(){
+	PlayerClient robot(host,port);
+	DioProxy systemDio(&robot,0);
+	Proxy ranger(&robot,0);
+	Position2dProxy base(&robot, 1);
+	Position2dProxy neck(&robot, 0);
+	BumperProxy bumper(&robot, 0);
+	PowerProxy power(&robot, 0);
+}
+*/
+
 
 int main(int argc, char** argv){
   int i,n;
@@ -265,16 +320,15 @@ int main(int argc, char** argv){
   }
 
 
-  PlayerClient    robot(host,port);
-  DioProxy systemDio(&robot,0);
-  RangerProxy myranger(&robot,0);
-  Position2dProxy mymotors(&robot, 1);
-  Position2dProxy neckServo(&robot, 0);
-  BumperProxy mybumper(&robot, 0);
-  PowerProxy mypower(&robot, 0);
+	PlayerClient    robot(host,port);
+	DioProxy systemDio(&robot,0);
+	RangerProxy myranger(&robot,0);
+	Position2dProxy mymotors(&robot, 1);
+	Position2dProxy neckServo(&robot, 0);
+	BumperProxy mybumper(&robot, 0);
+	PowerProxy mypower(&robot, 0);
 
   cout << "Client starts! " << endl;
-  // this structure is maintained by the joystick reader
 
 
   //keyboard configs //g
@@ -329,11 +383,12 @@ int main(int argc, char** argv){
 			cout << "Bumpers:";
 			if(mybumper.IsAnyBumped()){
 				for(i=0;i<mybumper.GetCount();i++){  //print all lasers receiveds
-					cout << (mybumper.IsBumped(i) ? '1' : '0') << " ";
+					cout << (mybumper.IsBumped(i) ? "1 " : "0 ") << " ";
 				}
 				cout << endl;
+				cout << "        NE N  NW SW S  SE" << endl;
 			}
-			else cout << "None bumpers had been bumped." << endl;
+			else cout << "None bumpers had been bumped." << endl << endl;
 
 			cout << "Rangers:";
 			for(i=0;i<myranger.GetRangeCount();i++){  //print all lasers receiveds
@@ -342,6 +397,7 @@ int main(int argc, char** argv){
 				else cout << myranger[i] << " ";  //centena
 			}
 			cout << "Qnt:" << myranger.GetRangeCount() << endl;
+			cout << "          1   2   3   4   5   6" << endl;
 			//////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -402,28 +458,20 @@ int main(int argc, char** argv){
 
 				float linear_default_vel = 0.04; //[m/s]
 
+				/*
 				if(option.at(1)=='f')
-					mymotors.SetSpeed(linear_default_vel,0); //mymotors.SetSpeed(atoi(cmdValue.c_str()),0);
+					//forward();
+					//mymotors.SetSpeed(linear_default_vel,0); //mymotors.SetSpeed(atoi(cmdValue.c_str()),0);
 				else if (option.at(1)=='d')
-					mymotors.SetSpeed(0,linear_default_vel);
+					//right();
+					//mymotors.SetSpeed(0,linear_default_vel);
 				else if (option.at(1)=='e')
-					mymotors.SetSpeed(0,-linear_default_vel);
+					//left();
+					//mymotors.SetSpeed(0,-linear_default_vel);
 				else if (option.at(1)=='t')
-					mymotors.SetSpeed(-linear_default_vel,0);
-
-
-				int aux = atoi(cmdValue.c_str());
-
-				int atualXPos = mymotors.GetXPos();
-				lastXPos = atualXPos;
-				while(true){
-					robot.Read();
-					atualXPos = mymotors.GetXPos();
-					if(option.at(1)=='f'       && (atualXPos-lastXPos)>=aux) break;
-					else if (option.at(1)=='t' && (lastXPos-atualXPos)>=aux) break;
-				}
-				mymotors.SetSpeed(0,0); //stop motor
-				//sleep(atoi(cmdValue.c_str()));
+					//backward();
+					//mymotors.SetSpeed(-linear_default_vel,0);
+				*/
 			}
 			else if(option.at(0)=='n'){
 				string cmdValue;

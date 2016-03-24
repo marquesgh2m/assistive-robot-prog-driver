@@ -211,6 +211,7 @@ int Player::writeData(unsigned char msgType, unsigned char *tx_data, unsigned in
 }*/
 
 int Player::writeData(uint8_t *tx_data, unsigned int tx_data_count){
+    //noInterrupts(); //desativa as interrupcoes para evitar que alguma seja chamada durante a transmissao
     int i, len;
     uint8_t temp[DATAMAX];
     temp[0]=SYNC0; //init byte0
@@ -222,6 +223,7 @@ int Player::writeData(uint8_t *tx_data, unsigned int tx_data_count){
     len=i;
     Serial.write(temp,len);
     Serial.flush(); // espera o fim da transmissao
+    //interrupts(); //reativa a possibilidade de interrupcoes
     return 0;
 }
 
