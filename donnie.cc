@@ -773,7 +773,7 @@ void Donnie::ProcessRequestPing(){
 	tx_data[0]=PINGPACK;
 	tx_data[1]=43;
 	arduino->writeData(tx_data,tx_data_count);
-	printf("\n");
+	printf(".\n");
 }
 
 

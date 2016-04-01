@@ -22,8 +22,8 @@
 
 //PROTOCOL DEFINES
 #define DATAMAX 50
-#define SYNC0   0xAB
-#define SYNC1   0xCD
+#define SYNC0   0xAA
+#define SYNC1   0xBB
 #define MOTORPACK  0x28
 #define DIOPACK  0x15
 #define RANGERPACK  0x68
@@ -61,6 +61,7 @@ class Serial{
         int fd; //The returned file handle for the device
         int state;
         unsigned char read_buff[256];
+        unsigned char read_cs[1];
         int received_bytes;
         ssize_t expected_packet_size;
 };
@@ -107,13 +108,24 @@ void Serial::setSpeed() {
 void Serial::setParity() {
     struct termios options;
     tcgetattr(this->fd, &options); //For reading the current attributes.
+    /*
     options.c_lflag  &= ~(ICANON | ECHO | ECHOE | ISIG);  //Input
     //ICANON -> Enables canonical input mode
     //ECHO -> Echo input characters. 
     //ECHOE -> If ICANON is also set, the ERASE character erases the preceding input character, and WERASE erases the preceding word. 
     //ISIG -> When any of the characters INTR, QUIT, SUSP, or DSUSP are received, generate the corresponding signal. 
     options.c_oflag  &= ~OPOST;   //Output
-    //OPOST -> Enable implementation-defined output processing. 
+    //OPOST -> Enable implementation-defined output processing. */
+
+    //Source http://stackoverflow.com/questions/8070632/missing-flow-control-data-0x13-from-reading-device-data-stream
+    //this configs settings to see ALL characters and ignore nothing.
+    //this fix the checksum error bug
+    options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+    options.c_oflag &= ~OPOST;
+    options.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+    options.c_cflag &= ~(CSIZE | PARENB);
+    options.c_cflag |= CS8;
+
     tcsetattr(fd,TCSANOW,&options); //For setting serial interface attributes. 
     //TCSANOW -> the configuration is changed immediately.
 }
@@ -260,8 +272,23 @@ int Serial::readData(unsigned char *rx_data, unsigned int *rx_data_count){ //ret
                     }
                     if (length == 1){
                         unsigned char CS_expected = aux[0];
-                        unsigned char CS_result = checksum(read_buff,this->expected_packet_size);
+                        unsigned char CS_result = checksum(this->read_buff,this->expected_packet_size);
                         
+                        /* debug printa buffer sem tratamentp
+                        if(this->read_buff[0]==0x68){
+                            for(int k = 0; k<500;k++){
+                                length = read(this->fd, aux, 1);
+                                if(aux[0]==0x68){
+                                    printf("%.2X ",aux[0]);
+                                    for(int k = 0; k<20;k++){
+                                        length = read(this->fd, aux, 1);
+                                        printf("%.2X ",aux[0]);
+                                    }   
+                                    printf("===============\n");
+                                }
+                            }
+                        }*/
+
                         if(CS_expected==CS_result){
                             memcpy(rx_data,this->read_buff,this->expected_packet_size);
                             *rx_data_count=this->expected_packet_size;
@@ -270,16 +297,17 @@ int Serial::readData(unsigned char *rx_data, unsigned int *rx_data_count){ //ret
                         }
                         else {
                             printf("\nChecksum Error!\n");
-
                             //checksum debug
                             int i;
-                            printf("Data:");
+                            //printf("Data:");
+                            printf("%.2X ",(int)expected_packet_size);
                             for(i=0;i<this->expected_packet_size;i++) {
-                                printf("%.2X",this->read_buff[i]); //mostra a informacao, em hexa, contida no vetor rx_data
+                                printf("%.2X ",this->read_buff[i]); //mostra a informacao, em hexa, contida no vetor rx_data
                             }
-                             printf(",SZ:%.2X",(int)expected_packet_size);
-                             printf("\nCS_expected:%.2X",CS_expected);
-                             printf("\nCS_result:%.2X\n",CS_result);
+                            printf("%.2X\n",CS_expected);
+                            //printf(",SZ:%.2X",(int)expected_packet_size);
+                            printf("CS_result:%.2X\n",CS_result);
+                            //printf("\nCS_result:%.2X\n",CS_result);
 
                             this->state = 0;
                         }

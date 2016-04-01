@@ -10,8 +10,8 @@
 
 //PROTOCOL DEFINES
 #define DATAMAX 50
-#define SYNC0   0xAB
-#define SYNC1   0xCD
+#define SYNC0   0xAA
+#define SYNC1   0xBB
 #define BUMPERPACK  0x42
 #define RANGERPACK  0x68
 #define LINEFOLLOWERPACK  0x93

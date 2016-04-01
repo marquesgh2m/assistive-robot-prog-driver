@@ -129,7 +129,7 @@ void sendData(){
 		sendSystemDioMsg(systemDio_data,5); //value(ex: 00 1110 0011), bitfield(ex: 10)
 	}
 	if(counter % SEND_RANGER_FRQ == 0){
-		sendRangerMsg(range,6);
+		sendRangerMsg(range,7);
 	}
 	if(counter % SEND_BUMPER_FRQ == 0){
 		sendBumperMsg(bumper,6);

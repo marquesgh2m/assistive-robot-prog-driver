@@ -75,6 +75,10 @@ void sendRangerMsg(unsigned char *data, unsigned int data_count){
 
     tx_data_count = data_count+2; //in bytes, RANGERPACK(1 byte) + qntOfRangers(1 byte) + data_count(n bytes)
 
+    //uint8_t v[] = {RANGERPACK,7,0x42,0x13,0x12,0x10,0xF0,0x45,0xF4};
+    //memcpy(tx_data,v,9);
+    //tx_data_count = 9;
+
     client->writeData(tx_data,tx_data_count);
 }
 

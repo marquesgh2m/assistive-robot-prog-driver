@@ -397,7 +397,7 @@ int main(int argc, char** argv){
 				else cout << myranger[i] << " ";  //centena
 			}
 			cout << "Qnt:" << myranger.GetRangeCount() << endl;
-			cout << "          1   2   3   4   5   6" << endl;
+			cout << "          1   2   3   4   5   6   7" << endl;
 			//////////////////////////////////////////////////////////////////////////////////////////////////
 
 
