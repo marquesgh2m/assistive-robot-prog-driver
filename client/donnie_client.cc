@@ -19,6 +19,7 @@ Based on playerjoy.cc Author: Richard Vaughan. Available in the player 3.0.2 sou
 #include <time.h>
 #include <pthread.h>
 #include <libplayerc++/playerc++.h>
+#include <cmath>
 
 
 #define KEYCODE_A 0x61
@@ -287,6 +288,11 @@ Robot::Robot(){
 }
 */
 
+double distanceTraveled(double x, double y){
+	return sqrt(x*x+y*y);
+}
+
+
 
 int main(int argc, char** argv){
   int i,n;
@@ -294,7 +300,10 @@ int main(int argc, char** argv){
   string option;
   string host;
   int port;
-  int lastXPos = 0;
+  double lastTravel = 0;
+  double lastAngularTravel = 0;
+  double totalTravel = 0;
+  float stepLength = 0.05;
 
   //default arguments
   host = "localhost"; 
@@ -343,8 +352,8 @@ int main(int argc, char** argv){
 			if(cont.dirty){
 				if(cont.speed == 0 && cont.turnrate == 0) mymotors.SetSpeed(0,0);	//stop
 				else if(cont.speed == 1 && cont.turnrate == 0) mymotors.SetSpeed(linear_default_vel,0); //forward
-				else if(cont.speed == 0 && cont.turnrate == 1) mymotors.SetSpeed(0,-linear_default_vel);//left
-				else if(cont.speed == 0 && cont.turnrate == -1) mymotors.SetSpeed(0,linear_default_vel); //right
+				else if(cont.speed == 0 && cont.turnrate == 1) mymotors.SetSpeed(0,linear_default_vel);//left
+				else if(cont.speed == 0 && cont.turnrate == -1) mymotors.SetSpeed(0,-linear_default_vel); //right
 				else if(cont.speed == -1 && cont.turnrate == 0) mymotors.SetSpeed(-linear_default_vel,0); //backward
 				cont.dirty = false; // we've handled the changes
 			}
@@ -425,8 +434,9 @@ int main(int argc, char** argv){
 			cout << "  => Vib2, Vib1, Buzzer, Comm, Power.";
 			cout << endl;
 
-			cout << "XPOS:" << mymotors.GetXPos() << "YPOS:" << mymotors.GetYPos() << "YawPOS:" << mymotors.GetYaw() << endl;
+			cout << "XPOS:" << mymotors.GetXPos() << " YPOS:" << mymotors.GetYPos() << " YawPOS:" << mymotors.GetYaw() << endl;
 			cout << " XSpeed:" << mymotors.GetXSpeed() << "YSpeed:" << mymotors.GetYSpeed() << endl;
+			cout << "Travel:" << totalTravel << endl;
 
 			cout << "Power charge:" << mypower.GetCharge() << " Power percent:" << mypower.GetPercent() << " Power valid:" << mypower.IsValid() << endl;
 
@@ -458,20 +468,38 @@ int main(int argc, char** argv){
 
 				float linear_default_vel = 0.04; //[m/s]
 
-				/*
+				
 				if(option.at(1)=='f')
 					//forward();
-					//mymotors.SetSpeed(linear_default_vel,0); //mymotors.SetSpeed(atoi(cmdValue.c_str()),0);
+					mymotors.SetSpeed(linear_default_vel,0); //mymotors.SetSpeed(atoi(cmdValue.c_str()),0);
 				else if (option.at(1)=='d')
 					//right();
-					//mymotors.SetSpeed(0,linear_default_vel);
+					mymotors.SetSpeed(0,-linear_default_vel);
 				else if (option.at(1)=='e')
 					//left();
-					//mymotors.SetSpeed(0,-linear_default_vel);
+					mymotors.SetSpeed(0,linear_default_vel);
 				else if (option.at(1)=='t')
 					//backward();
-					//mymotors.SetSpeed(-linear_default_vel,0);
-				*/
+					mymotors.SetSpeed(-linear_default_vel,0);
+				
+				float aux = strtof(cmdValue.c_str(),NULL);
+				double atualTravel = distanceTraveled(mymotors.GetXPos(),mymotors.GetYPos());
+				double atualAngularTravel = mymotors.GetYaw();
+				lastTravel = atualTravel;
+				lastAngularTravel = atualAngularTravel;
+				while(true){
+					robot.Read();
+					atualTravel = distanceTraveled(mymotors.GetXPos(),mymotors.GetYPos());
+					if(option.at(1)=='f'       && (atualTravel-lastTravel)>=aux) break;
+					else if (option.at(1)=='t' && (lastTravel-atualTravel)>=aux) break;		
+					else if (option.at(1)=='d' && (atualAngularTravel-lastAngularTravel)>=aux) break;
+					else if (option.at(1)=='e' && (lastAngularTravel-atualAngularTravel)>=aux) break;	
+
+					if(mybumper.IsAnyBumped()) break;
+					for(i=0;i<myranger.GetRangeCount();i++) if(myranger[i]<30 && (i<3||i==6)) cout << "VAI BATEEEEE!!!" << endl; 		
+				}
+				totalTravel += atualTravel; 
+				mymotors.SetSpeed(0,0); //stop motor
 			}
 			else if(option.at(0)=='n'){
 				string cmdValue;

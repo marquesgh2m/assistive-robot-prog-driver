@@ -119,7 +119,7 @@ void Serial::setParity() {
 
     //Source http://stackoverflow.com/questions/8070632/missing-flow-control-data-0x13-from-reading-device-data-stream
     //this configs settings to see ALL characters and ignore nothing.
-    //this fix the checksum error bug
+    //this fix the checksum error bug by control characters being sent through serial port 
     options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
     options.c_oflag &= ~OPOST;
     options.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);

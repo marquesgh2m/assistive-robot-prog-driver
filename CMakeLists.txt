@@ -1,21 +1,18 @@
-SET(THE_TARGET "donnie")
-SET(LIBDEST "/opt/player-stage/src/player-3.0.2/build/examples/plugins/")
-
 CMAKE_MINIMUM_REQUIRED (VERSION 2.4 FATAL_ERROR)
-PROJECT (${THE_TARGET})
+PROJECT (donnie)
 
 # Include this CMake module to get most of the settings needed to build
-SET (CMAKE_MODULE_PATH "@CMAKE_INSTALL_PREFIX@/share/cmake/Modules")
+SET (CMAKE_MODULE_PATH "/usr/local/share/cmake/Modules")
 INCLUDE (UsePlayerPlugin)
 
-PLAYER_ADD_PLUGIN_DRIVER (${THE_TARGET} SOURCES ${THE_TARGET}.cc)
+PLAYER_ADD_PLUGIN_DRIVER (donnie SOURCES donnie.cc) #source files list
+#TARGET_LINK_LIBRARIES (${THE_TARGET})
+INCLUDE_DIRECTORIES (${CMAKE_CURRENT_SOURCE_DIR}) #source files list
+#LINK_DIRECTORIES () #libraries directories files list
+#ADD_LIBRARY () #libraries list ex: -ld
 
-INCLUDE_DIRECTORIES (${PLAYERCORE_EXTRA_INCLUDE_DIRS})
-LINK_DIRECTORIES (${PLAYERCORE_EXTRA_LINK_DIRS})
-ADD_LIBRARY (${THE_TARGET} SHARED ${THE_TARGET}.cc)
-TARGET_LINK_LIBRARIES (${THE_TARGET} playercore)
-
-SET (exampleDestDir share/${PROJECT_NAME_LOWER}/examples/plugins/${THE_TARGET})
-INSTALL (FILES ${THE_TARGET}.cc DESTINATION ${exampleDestDir} COMPONENT examples)
+INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/donnie.cfg DESTINATION /usr/local/share/player/config/)
+INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/client/donnie_client.cc      DESTINATION /usr/local/share/player/examples/libplayerc++/donnie/)
+INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/client/CMakeLists.txt DESTINATION /usr/local/share/player/examples/libplayerc++/donnie/)
 #INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${THE_TARGET}.so DESTINATION ${PLUGIN_PLAYERC_LIBRARY_DIRS})  #instala na pasta /usr/local/lib64
-INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${THE_TARGET}.so DESTINATION ${LIBDEST}${THE_TARGET}) 
+INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/libdonnie.so DESTINATION /usr/local/lib64/) 

@@ -185,6 +185,7 @@ class Donnie : public ThreadedDriver{
 		double pid_setpoint;
 		int pid_offset_r;
 		int pid_offset_l;
+		double odom_offset;
 
 
 
@@ -219,9 +220,9 @@ void Donnie_Register(DriverTable* table){
 extern "C"{
 	int player_driver_init(DriverTable* table)
 	{
-		puts("Example arduino driver initializing");
+		puts("Example arduino driver initializing TEST@");
 		Donnie_Register(table);
-		puts("Example arduino driver done");
+		puts("Example arduino driver donTEST@");
 		return(0);
 	}
 }
@@ -319,6 +320,8 @@ Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
 	pid_setpoint = cf->ReadFloat(section, "pid_setpoint", 0.);
 	pid_offset_r = cf->ReadInt(section, "pid_offset_r", 0);
 	pid_offset_l = cf->ReadInt(section, "pid_offset_l", 0);
+
+	odom_offset = cf->ReadFloat(section, "odom_offset", 0);
 
 
 	//this->RegisterProperty ("port", &this->port, cf, section);
