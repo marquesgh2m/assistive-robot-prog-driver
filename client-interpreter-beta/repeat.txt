@@ -1,0 +1,5 @@
+
+repita 4[
+pf 6;
+girar direita 90;
+];

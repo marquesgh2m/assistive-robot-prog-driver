@@ -64,17 +64,16 @@ void status_config(){
 	digitalWrite(PIN_LED_CONNECTION,HIGH);
 
 
-	digitalWrite(PIN_BUZZER, HIGH);
+	
+	tone(PIN_BUZZER, 523, 100);
 	digitalWrite(PIN_VIBRATION_R, HIGH);
 	delay(200);
+	tone(PIN_BUZZER, 988, 100);
 	digitalWrite(PIN_VIBRATION_R, LOW);
-	digitalWrite(PIN_BUZZER, LOW);
 	delay(500);
-	digitalWrite(PIN_BUZZER, HIGH);
 	digitalWrite(PIN_VIBRATION_L, HIGH);
 	delay(200);
 	digitalWrite(PIN_VIBRATION_L, LOW);
-	digitalWrite(PIN_BUZZER, LOW);
 }
 
 void battery_update(){

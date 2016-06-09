@@ -43,6 +43,7 @@ uint8_t receivedPingCmd();
 uint8_t receivedConfigCmd();
 uint8_t receivedVelCmd();
 uint8_t receivedServoCmd();
+uint8_t receivedBeep();
 
 uint8_t readCommand(){
     int i;
@@ -204,6 +205,10 @@ uint8_t receivedVelCmd(){
 }
 uint8_t receivedServoCmd(){
     if(cmd.type==SERVOPACK) return 1;
+    else return 0;
+}
+uint8_t receivedBeep(){
+    if(cmd.type==BEEPPACK) return 1;
     else return 0;
 }
 

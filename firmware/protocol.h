@@ -24,6 +24,7 @@
 #define PINGPACK  0x41
 #define ENCODERPACK  0x81
 #define SERVOPACK  0x30
+#define BEEPPACK 0x17
 
 //amory - implementar contador de erro de checksum e mandar de tempos em tempos pro driver
 

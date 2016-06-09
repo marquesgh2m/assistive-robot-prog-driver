@@ -1,0 +1,1 @@
+/usr/bin/c++       CMakeFiles/client_donnie.dir/client_donnie.o  -o client_donnie -rdynamic -L/usr/local/lib64 -lplayerc++ -lboost_thread -lboost_signals -lplayerc -lm -lz -lplayerinterface -lplayerwkb -lplayercommon -Wl,-rpath,/usr/local/lib64 

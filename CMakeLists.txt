@@ -11,8 +11,8 @@ INCLUDE_DIRECTORIES (${CMAKE_CURRENT_SOURCE_DIR}) #source files list
 #LINK_DIRECTORIES () #libraries directories files list
 #ADD_LIBRARY () #libraries list ex: -ld
 
-INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/donnie.cfg DESTINATION /usr/local/share/player/config/)
-INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/client/donnie_client.cc      DESTINATION /usr/local/share/player/examples/libplayerc++/donnie/)
-INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/client/CMakeLists.txt DESTINATION /usr/local/share/player/examples/libplayerc++/donnie/)
+#INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/server_donnie.cfg DESTINATION /usr/local/share/player/config/)
+#INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/client/client_donnie.cc      DESTINATION /usr/local/share/player/examples/libplayerc++/donnie/)
+#INSTALL (FILES ${CMAKE_CURRENT_SOURCE_DIR}/client/CMakeLists.txt DESTINATION /usr/local/share/player/examples/libplayerc++/donnie/)
 #INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${THE_TARGET}.so DESTINATION ${PLUGIN_PLAYERC_LIBRARY_DIRS})  #instala na pasta /usr/local/lib64
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/libdonnie.so DESTINATION /usr/local/lib64/) 

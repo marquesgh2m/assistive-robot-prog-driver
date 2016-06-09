@@ -35,6 +35,8 @@
 #define PINGPACK 0x41
 #define ENCODERPACK  0x81
 #define SERVOPACK  0x30
+#define BEEPPACK 0x17
+
 
 void sendPing();
 

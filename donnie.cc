@@ -122,6 +122,11 @@ class Donnie : public ThreadedDriver{
 		void ProcessEncoderData();
 		void Odometry();
 		void FloatToBytes(float value, uint8_t *data);
+		void Uint16_tToBytes(uint16_t value, uint8_t *data);
+		void Uint32_tToBytes(uint32_t value, uint8_t *data);
+		void ProcessBeepCmd(player_msghdr_t* hdr, player_beep_cmd_t &data);
+
+
 
 	/*  
 	Definition:
@@ -158,6 +163,8 @@ class Donnie : public ThreadedDriver{
 		// My power interface
 		player_devaddr_t power_addr;
 		// My Odometry interface
+		player_devaddr_t m_beep_addr;
+		//My Beep interface
 
 		//Odometry data
 		player_position2d_data_t m_pos_data;
@@ -220,9 +227,9 @@ void Donnie_Register(DriverTable* table){
 extern "C"{
 	int player_driver_init(DriverTable* table)
 	{
-		puts("Example arduino driver initializing TEST@");
+		puts("Arduino driver initializing");
 		Donnie_Register(table);
-		puts("Example arduino driver donTEST@");
+		puts("waiting for client start...");
 		return(0);
 	}
 }
@@ -305,6 +312,17 @@ Donnie::Donnie(ConfigFile* cf, int section) : ThreadedDriver(cf, section){
 	  	this->SetError (-1);
 	  	return;
 	}
+	// Create my beep interface
+	if (cf->ReadDeviceAddr(&(this->m_beep_addr), section, "provides", PLAYER_BEEP_CODE, -1, NULL)){
+			PLAYER_ERROR("Could not read BEEP ");
+			SetError(-1);
+			return;
+	 }
+	 if (AddInterface(this->m_beep_addr)){
+			PLAYER_ERROR("Could not add dio interface ");
+			SetError(-1);
+			return;
+	 }
 	 
 	port = cf->ReadString (section, "port", "/dev/ttyACM0");
 	robot_width = cf->ReadFloat(section, "width", 0.2);    // [m]
@@ -345,7 +363,7 @@ int Donnie::MainSetup(){
 
 
 	arduino = new Serial(port.c_str());  //c_str() convert string to const char*
- 
+
 	puts("MainSetup driver ready");
 	return(0);
 }
@@ -461,6 +479,12 @@ int Donnie::ProcessMessage(QueuePointer & resp_queue, player_msghdr * hdr, void 
 			PLAYER_WARN("position2d update geometry request received");
 			ProcessPos2dGeomReq(hdr);
 			return(0);
+	 }
+	 if (Message::MatchMessage(hdr, PLAYER_MSGTYPE_CMD, PLAYER_BEEP_CMD_VALUES, m_beep_addr)){
+			ProcessBeepCmd(hdr, *reinterpret_cast<player_beep_cmd_t*>(data));
+			
+
+			return 0;
 	 }
 
 	
@@ -723,7 +747,7 @@ void Donnie::ProcessRequestConfig(){
 	printf("RECEIVED REQUEST CONFIG. Sending Arduino Config...\n\n");
 
 	// update arduino config variables
-	uint8_t converted[6]; //6 valor que caiba as conversoes
+	uint8_t converted[10]; //10 valor que caiba as conversoes
 	tx_data[0] = CONFIGPACK;
 
 	FloatToBytes(pid_kp,converted);
@@ -755,6 +779,7 @@ void Donnie::ProcessRequestConfig(){
 
 	tx_data_count=19;
 	arduino->writeData(tx_data,tx_data_count);
+
 }
 
 
@@ -935,7 +960,7 @@ void Donnie::FloatToBytes(float value, uint8_t *data){
     //This creates a new union type in wich all its member elements occupy the same physical space in memory
 	union {
 	  float f;
-	  uint8_t b[3]; //u.b[3] = b0;
+	  uint8_t b[4]; //u.b[3] = b0;
 	} u;
 
 	u.f = value;
@@ -944,4 +969,56 @@ void Donnie::FloatToBytes(float value, uint8_t *data){
     data[1] = u.b[2];
     data[2] = u.b[1];
     data[3] = u.b[0];
+}
+
+void Donnie::Uint16_tToBytes(uint16_t value, uint8_t *data){
+	memset (data, 0, sizeof(data));
+    //This creates a new union type in wich all its member elements occupy the same physical space in memory
+	union {
+	  uint16_t v;
+	  uint8_t b[2]; //u.b[1] = b0;
+	} u;
+
+	u.v = value;
+
+    data[0] = u.b[1];
+    data[1] = u.b[0];
+}
+
+void Donnie::Uint32_tToBytes(uint32_t value, uint8_t *data){
+	memset (data, 0, sizeof(data));
+    //This creates a new union type in wich all its member elements occupy the same physical space in memory
+	union {
+	  uint32_t v;
+	  uint8_t b[4]; //u.b[3] = b0;
+	} u;
+
+	u.v = value;
+
+    data[0] = u.b[3];
+    data[1] = u.b[2];
+    data[2] = u.b[1];
+    data[3] = u.b[0];
+}
+
+void Donnie::ProcessBeepCmd(player_msghdr_t* hdr, player_beep_cmd_t &data){
+
+	uint16_t frequency = data.frequency;
+	uint32_t duration = data.duration;
+	//std::cout << "Freq:" << data.frequency << std::endl;
+	//std::cout << "Dur:" << data.duration << std::endl << std::endl;
+	//PLAYER_MSG0(0, "Beep sending..");
+	uint8_t converted[10]; //10 valor que caiba as conversoes
+ 	tx_data_count=7;
+	tx_data[0]=BEEPPACK;
+	Uint16_tToBytes(frequency,converted);
+	tx_data[1]=converted[0];
+	tx_data[2]=converted[1];
+	Uint32_tToBytes(duration,converted);
+	tx_data[3]=converted[0];
+	tx_data[4]=converted[1];
+	tx_data[5]=converted[2];
+	tx_data[6]=converted[3];
+	arduino->writeData(tx_data,tx_data_count);
+	//PLAYER_MSG0(0, "Beep sent");
 }

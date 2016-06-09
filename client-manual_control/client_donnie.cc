@@ -20,6 +20,7 @@ Based on playerjoy.cc Author: Richard Vaughan. Available in the player 3.0.2 sou
 #include <pthread.h>
 #include <libplayerc++/playerc++.h>
 #include <cmath>
+#include "pitches.h"
 
 
 #define KEYCODE_A 0x61
@@ -41,6 +42,15 @@ Based on playerjoy.cc Author: Richard Vaughan. Available in the player 3.0.2 sou
 #define KEYCODE_W 0x77
 #define KEYCODE_X 0x78
 #define KEYCODE_Z 0x7a
+
+#define KEYCODE_AA 0x41
+#define KEYCODE_BB 0x42
+#define KEYCODE_CC 0x43
+#define KEYCODE_DD 0x44
+#define KEYCODE_EE 0x45
+#define KEYCODE_FF 0x46
+#define KEYCODE_GG 0x47
+
 
 #define KEYCODE_COMMA 0x2c
 #define KEYCODE_PERIOD 0x2e
@@ -215,6 +225,34 @@ void* keyboard_handler(void* arg)
 		break;
 	  case KEYCODE_T:
 		break;
+	  case KEYCODE_AA:
+	  	lastKey = 'A';
+	  	cont->dirty = true;
+		break;
+	  case KEYCODE_BB:
+	  	lastKey = 'B';
+	  	cont->dirty = true;
+		break;
+	  case KEYCODE_CC:
+	  	lastKey = 'C';
+	  	cont->dirty = true;
+		break;
+	  case KEYCODE_DD:
+	  	lastKey = 'D';
+	  	cont->dirty = true;
+		break;
+	  case KEYCODE_EE:
+	  	lastKey = 'E';
+	  	cont->dirty = true;
+		break;
+	  case KEYCODE_FF:
+	  	lastKey = 'F';
+	  	cont->dirty = true;
+		break;
+	  case KEYCODE_GG:
+	  	lastKey = 'G';
+	  	cont->dirty = true;
+		break;
 	  default:
 		speed = 0;
 		turn = 0;
@@ -336,6 +374,7 @@ int main(int argc, char** argv){
 	Position2dProxy neckServo(&robot, 0);
 	BumperProxy mybumper(&robot, 0);
 	PowerProxy mypower(&robot, 0);
+	BeepProxy mybeep(&robot, 0);
 
   cout << "Client starts! " << endl;
 
@@ -355,6 +394,30 @@ int main(int argc, char** argv){
 				else if(cont.speed == 0 && cont.turnrate == 1) mymotors.SetSpeed(0,linear_default_vel);//left
 				else if(cont.speed == 0 && cont.turnrate == -1) mymotors.SetSpeed(0,-linear_default_vel); //right
 				else if(cont.speed == -1 && cont.turnrate == 0) mymotors.SetSpeed(-linear_default_vel,0); //backward
+				
+				switch(lastKey){
+					case 'C':
+						mybeep.playTone(NOTE_C6,200);
+					break;
+					case 'D':
+						mybeep.playTone(NOTE_D6,200);
+					break;
+					case 'E':
+						mybeep.playTone(NOTE_E6,200);
+					break;
+					case 'F':
+						mybeep.playTone(NOTE_F6,200);
+					break;
+					case 'G':
+						mybeep.playTone(NOTE_G6,200);
+					break;
+					case 'A':
+						mybeep.playTone(NOTE_A6,200);
+					break;
+					case 'B':
+						mybeep.playTone(NOTE_B6,200);
+					break;
+				}
 				cont.dirty = false; // we've handled the changes
 			}
 			else{
@@ -373,6 +436,8 @@ int main(int argc, char** argv){
 			puts("   j    k    l");
 			puts("        ,     ");
 			puts("button release : stop");
+			puts("---------------------------");
+			cout << "lastKey:" << lastKey << endl;
 			puts("---------------------------");
 
 			/////////////////////////////////////////////Debugging method////////////////////////////////////////////////

@@ -12,6 +12,7 @@ PARA COMPILAR USAR IDE ARDUINO 1.2 OU SUPERIOR
 #include "Ranger.h"
 #include "bumper.h"
 #include <Servo.h>
+#include "pitches.h"
 
 Servo neckServo;
 
@@ -42,7 +43,7 @@ float BytesToFloat(uint8_t *data, uint8_t first){
 float BytesToFloat(uint8_t *data){
 	union {
 	  float f;
-	  uint8_t b[3]; //u.b[3] = b0;
+	  uint8_t b[4]; //u.b[3] = b0;
 	} u;
 
 	u.b[3]=data[0];
@@ -51,6 +52,31 @@ float BytesToFloat(uint8_t *data){
 	u.b[0]=data[3];
 	return u.f;
 }
+
+uint16_t BytesToUint16_t(uint8_t *data, uint8_t first){
+	union {
+	  uint16_t v;
+	  uint8_t b[2]; //u.b[1] = b0;
+	} u;
+
+	u.b[1] = data[first];
+	u.b[0] = data[first+1];
+	return u.v;
+}
+
+uint32_t BytesToUint32_t(uint8_t *data, uint8_t first){
+	union {
+	  uint32_t v;
+	  uint8_t b[4]; //u.b[3] = b0;
+	} u;
+
+	u.b[3]=data[first];
+	u.b[2]=data[first+1];
+	u.b[1]=data[first+2];
+	u.b[0]=data[first+3];
+	return u.v;
+}
+
 
 void processCommand(){  
 	if(receivedSystemDioCmd()){  //TODO trocar toda infraextrutura para SYSTEM_DIO_CMD //change state of the digital output
@@ -83,7 +109,15 @@ void processCommand(){
 		m.setOffsetR(cmd.data[16]);
 		m.setOffsetL(cmd.data[17]);
 	}
-
+	else if(receivedBeep()){
+		//TODO definir mensagem com o tipo do beep -> Melody/BeepWithDuration/BeepActiveOn/BeepActiveOff
+		tone(PIN_BUZZER, BytesToUint16_t(cmd.data,0), BytesToUint32_t(cmd.data,2));
+		systemMsg("\nBeep test Start\n");
+		systemMsg(String(BytesToUint16_t(cmd.data,0)));
+		systemMsg("\n");
+		systemMsg(String(BytesToUint32_t(cmd.data,2)));
+		systemMsg("\nBeep test End\n");
+	}
 	
 	
 	clearCommand();
@@ -180,7 +214,74 @@ void driver_config(){
 }
 
 
+
+
+/*
+mi E  7
+re D  7
+do C  7
+si B  6             //Dó – ré – mi – fá – sol – Lá – si   
+la A  6              //C –  D –  E –  F –  G –   A –  B (inglês)  
+Sol G 6 <-
+fa F  6
+mi E  6 
+re D  6
+do C  6
+si B  5
+la A  5
+*/
+
+
+int oDeAlegriaP1[]       = {NOTE_E7, NOTE_E7, NOTE_F7, NOTE_G7,           NOTE_G7, NOTE_F7, NOTE_E7, NOTE_D7,           NOTE_C7, NOTE_C7, NOTE_D7, NOTE_E7,          NOTE_E7, NOTE_C7, NOTE_C7         };
+int oDeAlegriaBeatsP1[]  = {4,       4,       4,       4,                 4,       4,       4,       4,                 4,      4,       4,       4,                 3,       6,       2,              };
+int oDeAlegriaP2[]       = {NOTE_E7, NOTE_E7, NOTE_F7, NOTE_G7,           NOTE_G7, NOTE_F7, NOTE_E7, NOTE_D7,           NOTE_C7, NOTE_C7, NOTE_D7, NOTE_E7,          NOTE_D7, NOTE_B6, NOTE_C7         };
+int oDeAlegriaBeatsP2[]  = {4,       4,       4,       4,                 4,       4,       4,       4,                 4,      4,       4,       4,                 3,       6,       2,              };
+int oDeAlegriaP3[]       = {NOTE_D7,          NOTE_E7, NOTE_C7,           NOTE_D7,  NOTE_F7, NOTE_E7, NOTE_C7,          NOTE_D7,  NOTE_F7, NOTE_E7, NOTE_C7,         NOTE_D7, NOTE_G7, NOTE_G7         };
+int oDeAlegriaBeatsP3[]  = {2,                4,       4,                 4,        4,       4,       4,                4,        4,       4,       4,               4,       4,       2,              };
+
+
+int imperialMarch[]       = {NOTE_G4, 0, NOTE_G4, NOTE_G4,           NOTE_G4, NOTE_G4, NOTE_G4, NOTE_G4,           NOTE_E4, NOTE_E4, NOTE_G4, 0, NOTE_G4, NOTE_G4, NOTE_G4, NOTE_G4, NOTE_G4,           NOTE_E4, NOTE_E4, NOTE_G4     };
+int imperialMarchBeats[]  = {2,       4,       2,       4,                 4,       8,       8,       8,                 4,      4,       2,  4,     2,         4,       8,       8,       8,                 4,      4,       2        };
+
+int imperialMarch2[]       = {NOTE_A4,   NOTE_A4, NOTE_A4,           NOTE_F4, NOTE_C4, NOTE_A4, NOTE_F4,           NOTE_C4, NOTE_A4, NOTE_E4,  NOTE_E4, NOTE_E4, NOTE_F4, NOTE_C4, NOTE_GS4,           NOTE_F4, NOTE_C4, NOTE_A4     };
+int imperialMarchBeats2[]  = {4,             4,       4,                 4,       8,      4,       8,                 8,      4,       8,       2,         2,       4,       4,       4,                 4,      4,       4       };
+
+
+
+void melody(int *notes,int  *noteDurations, int length) {
+  // iterate over the notes of the melody:
+  for (int thisNote = 0; thisNote < length; thisNote++) { 
+
+    // to calculate the note duration, take one second
+    // divided by the note type.
+    //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+    int noteDuration = 1000 / noteDurations[thisNote];
+    tone(PIN_BUZZER, notes[thisNote], noteDuration);
+
+    // to distinguish the notes, set a minimum time between them.
+    // the note's duration + 30% seems to work well:
+    int pauseBetweenNotes = noteDuration * 1.30;
+    delay(pauseBetweenNotes);
+    // stop the tone playing:
+    noTone(PIN_BUZZER);
+  }
+}
+
+
+
+
+
+
 void setup(){
+	//melody(oDeAlegriaP1,oDeAlegriaBeatsP1,15);
+    //melody(oDeAlegriaP2,oDeAlegriaBeatsP2,15);
+    //melody(oDeAlegriaP3,oDeAlegriaBeatsP3,14);
+    //melody(oDeAlegriaP1,oDeAlegriaBeatsP1,15);
+    //melody(oDeAlegriaP2,oDeAlegriaBeatsP2,15);
+    //melody(imperialMarch,imperialMarchBeats,18);
+
+
+
 	protocol_config();
 	status_config();
     driver_config(); //after status_config beacuse led connection
